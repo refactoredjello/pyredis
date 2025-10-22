@@ -1,19 +1,28 @@
-from typing import Tuple, TypeAlias, Optional, Any
+from typing import Tuple, TypeAlias, Optional, Any, ClassVar
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, InitVar
 
 CRLF = b'\r\n'
-
+# TODO
+# Add serialization handler for each type (serialize)
+# Add test cases for null bytes for array/bulk string and null data type
+# Listen conn, accept conn, rev and receive frame, send
+# Add commands PING and Echo
 class PyRedisType(ABC):
     data = Any
+    prefix: ClassVar[bytes]
 
     @abstractmethod
     def decode(self, encoding='utf-8'):
+        raise NotImplemented
+    @abstractmethod
+    def serialize(self, encoding='utf-8'):
         raise NotImplemented
 
 # b"+full\r\n"
 @dataclass(frozen=True)
 class SimpleString(PyRedisType):
+    prefix: ClassVar[bytes] = b'+'
     data: bytes
     def decode(self, encoding='utf-8'):
         return self.data.decode(encoding)
@@ -52,7 +61,7 @@ class BulkString(PyRedisType):
 # Arrays "*2\r\n:1\r\n:2\r\n"
 @dataclass(frozen=True)
 class Array(PyRedisType):
-    data: list
+    data: list['Frame']
     def decode(self, encoding='utf-8'):
         return [val.decode(encoding) for val in self.data]
 
