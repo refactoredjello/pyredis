@@ -32,17 +32,21 @@ async def server():
                 print(f"Handling connection from {address}")
                 conns.append(asyncio.create_task(handle_connection(client)))
 
-            except KeyboardInterrupt:
+            except (KeyboardInterrupt, asyncio.CancelledError):
                 print(f'Shutting Down')
                 for c in conns:
                     c.cancel()
 
                 if conns:
                     await asyncio.gather(*conns, return_exceptions=True)
+                raise
 
 
 if __name__ == '__main__':
-    asyncio.run(server())
+    try:
+        asyncio.run(server())
+    except KeyboardInterrupt:
+        print('Shutdown')
 
 
 
