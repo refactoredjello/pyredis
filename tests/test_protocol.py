@@ -3,7 +3,7 @@ from pyredis.protocol import parse_frame, SimpleString, Error, BulkString, Array
 
 
 @pytest.mark.parametrize("buffer, expected", [
-    (b'none', (None, 0)),
+    (b'none\r\n', (None, 0)),
     (b"+part", (None, 0)),
     (b"+full\r\n", (SimpleString(b"full"), 7)),
     (b"+full\r\n+part", (SimpleString(b"full"), 7)),
