@@ -1,10 +1,12 @@
 import socket
 import asyncio
 from protocol import parse_frame
+from pyredis.commands import Command
 
-PORT = 6379 # Redis Port
+PORT = 6379  # Redis Port
 BUFFER_SIZE = 4096
 ADDRESS = 'localhost'
+
 
 async def handle_connection(client):
     loop = asyncio.get_running_loop()
@@ -19,7 +21,10 @@ async def handle_connection(client):
                     break
                 else:
                     frame_buffer = frame_buffer[size:]
-                    await loop.sock_sendall(client, frame.serialize())
+                    response = Command(frame).exec()
+                    await loop.sock_sendall(client, response.serialize())
+
+
         except (ConnectionResetError, asyncio.CancelledError):
             print('Client disconnected or server shutdown')
             return
@@ -36,7 +41,7 @@ async def server():
         print(f'Server listening on {ADDRESS}:{PORT}...')
         while True:
             try:
-                client, address =  await loop.sock_accept(s)
+                client, address = await loop.sock_accept(s)
                 print(f"Handling connection from {address}")
                 conns.append(asyncio.create_task(handle_connection(client)))
 
@@ -55,6 +60,3 @@ if __name__ == '__main__':
         asyncio.run(server())
     except KeyboardInterrupt:
         print('Shutdown...')
-
-
-

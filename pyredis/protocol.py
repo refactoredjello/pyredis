@@ -120,9 +120,11 @@ def parse_bulk_string(buffer: bytes, offset: int) -> Tuple[BulkString | NullBulk
     if buffer.rfind(CRLF) <= offset:
         return None, 0
 
+    content_start = offset + len(CRLF)
+    content_end = content_start + length
     if length != 0:
-        content = buffer[offset + 1:offset + length + 2]
-        return BulkString(content), buffer.find(content) + length + 3
+        content = buffer[content_start:content_end]
+        return BulkString(content), offset + len(CRLF) + length + len(CRLF) + 1
 
     return BulkString(b''), 6
 
@@ -161,7 +163,7 @@ def parse_frame(buffer: bytes) -> ParseResult:
         case Integer.prefix:
             return Integer(buffer[1:delim]), size
         case BulkString.prefix:
-            return parse_bulk_string(buffer[1:], delim)
+            return parse_bulk_string(buffer[1:], delim-1)
         case Array.prefix:
             return parse_array(buffer[1:], delim)
         case Null.prefix:
