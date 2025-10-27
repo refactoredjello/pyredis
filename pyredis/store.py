@@ -1,5 +1,6 @@
 import asyncio
 
+
 class DataStore:
     def __init__(self):
         self._data = {}
@@ -8,14 +9,13 @@ class DataStore:
     async def run_worker(self):
         print("Data store worker started.")
         while True:
-            # Safely wait for the next command
             command, key, value, future = await self._queue.get()
 
             try:
-                if command == 'SET':
+                if command == "SET":
                     self._data[key] = value
-                    future.set_result('OK')
-                elif command == 'GET':
+                    future.set_result("OK")
+                elif command == "GET":
                     result = self._data.get(key)
                     future.set_result(result)
                 else:
@@ -26,11 +26,11 @@ class DataStore:
     async def set(self, key, value):
         loop = asyncio.get_running_loop()
         future = loop.create_future()
-        await self._queue.put(('SET', key, value, future))
+        await self._queue.put(("SET", key, value, future))
         return await future
 
     async def get(self, key):
         loop = asyncio.get_running_loop()
         future = loop.create_future()
-        await self._queue.put(('GET', key, None, future))
+        await self._queue.put(("GET", key, None, future))
         return await future

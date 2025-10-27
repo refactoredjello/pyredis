@@ -1,8 +1,9 @@
 import inspect
 
-from pyredis.protocol import Array, Error, SimpleString, parse_frame, Null
+from pyredis.protocol import Array, Error, SimpleString, NullBulkString
 
 _cmd_registry = {}
+
 
 # TODO Add error handling for malformed get set commands
 def register_command(name):
@@ -16,26 +17,25 @@ def register_command(name):
 class Commands:
     # ECHO  *2\r\n$4\r\nECHO\r\n$11\r\nhello world\r\n
     @staticmethod
-    @register_command('ECHO')
+    @register_command("ECHO")
     def echo(request):
         return request.data[1]
 
     # *1\r\n$4\r\nPING\r\n
     @staticmethod
-    @register_command('PING')
+    @register_command("PING")
     def ping(_):
-        return SimpleString(b'PONG')
+        return SimpleString(b"PONG")
 
     @staticmethod
-    @register_command('NOT_FOUND')
+    @register_command("NOT_FOUND")
     def not_found(cmd):
         return Error(f"ERR command `{cmd}` not found".encode())
 
     @staticmethod
     @register_command("SET")
     async def set(request: Array, datastore):
-        if len(request.data) != 3:
-            return Error(b"ERR wrong number of arguments for 'set' command")
+
         key = request.data[1].decode()
         value = request.data[2]
 
@@ -45,10 +45,12 @@ class Commands:
     @staticmethod
     @register_command("GET")
     async def get(request: Array, datastore):
+        if len(request.data) != 3:
+            return Error(b"ERR wrong number of arguments for 'get' command")
         key = request.data[1].decode()
         value = await datastore.get(key)
         if value is None:
-            return Null()
+            return NullBulkString()
         return value
 
 

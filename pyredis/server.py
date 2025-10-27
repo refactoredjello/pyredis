@@ -6,9 +6,9 @@ from pyredis.store import DataStore
 
 PORT = 6379  # Redis Port
 BUFFER_SIZE = 4096
-ADDRESS = 'localhost'
+ADDRESS = "localhost"
 
-# TODO fix keepalive
+
 async def handle_connection(client, datastore):
     loop = asyncio.get_running_loop()
     frame_buffer = bytearray()
@@ -27,11 +27,12 @@ async def handle_connection(client, datastore):
                     await loop.sock_sendall(client, response.serialize())
                 else:
                     break
-
         except (ConnectionResetError, asyncio.CancelledError):
-            print('Client disconnected or server shutdown')
             raise
-    client.close()
+        finally:
+            print("Client disconnected or server shutdown")
+            client.close()
+
 
 async def server():
     datastore = DataStore()
@@ -44,7 +45,7 @@ async def server():
         s.listen()
         s.setblocking(False)
 
-        print(f'Server listening on {ADDRESS}:{PORT}...')
+        print(f"Server listening on {ADDRESS}:{PORT}...")
         while True:
             try:
                 client, address = await loop.sock_accept(s)
@@ -52,7 +53,7 @@ async def server():
                 conns.append(asyncio.create_task(handle_connection(client, datastore)))
 
             except (KeyboardInterrupt, asyncio.CancelledError):
-                print(f'Shutting Down')
+                print(f"Shutting Down")
                 for c in conns:
                     c.cancel()
 
@@ -64,8 +65,8 @@ async def server():
                 raise
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         asyncio.run(server())
     except KeyboardInterrupt:
-        print('Shutdown...')
+        print("Shutdown...")
