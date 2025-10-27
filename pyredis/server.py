@@ -29,7 +29,6 @@ async def handle_connection(client, datastore):
                     break
 
         except (ConnectionResetError, asyncio.CancelledError):
-            client.closed()
             print('Client disconnected or server shutdown')
             raise
 
