@@ -16,8 +16,9 @@ from pyredis.protocol import parse_frame, SimpleString, Error, BulkString, Array
     (b"-Error\r\n+part", (Error(b"Error"), 8)),
     (b"$4\r\nredis", (None, 0)),
     (b"$4\r\nredis\r\n", (BulkString(b"redis"), 10)),
+    (b"$0\r\n\r\n", (BulkString(b""), 6)),
     (b"$4\r\nredis\r\n$4\r\npart", (BulkString(b"redis"), 10)),
-    (b"$0\r\n\r\n", (NullBulkString(), 6)),
+    (b"$-1\r\n", (NullBulkString(), 5)),
     (b"*2\r\n:1\r\n:2", (None, 0)),
     (b"*2\r\n:1\r\n:2\r\n", (Array([Integer(b'1'), Integer(b'2')]), 12)),
     (b"*2\r\n:1\r\n:2\r\n*2\r\n:3", (Array([Integer(b'1'), Integer(b'2')]), 12)),
@@ -96,7 +97,7 @@ def test_bulk_string_serialize():
 
 
 def test_null_bulk_string_serialize():
-    assert NullBulkString().serialize() == b'$0%(CRLF)s%(CRLF)s' % {b'CRLF': CRLF}
+    assert NullBulkString().serialize() == b'$-1%(CRLF)s' % {b'CRLF': CRLF}
 
 
 def test_array_serialize():

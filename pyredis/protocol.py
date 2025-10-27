@@ -67,6 +67,9 @@ class BulkString(PyRedisType):
 class NullBulkString(BulkString):
     data: bytes = field(init=False, default=b'')
 
+    def _serialize_data(self):
+        return b'-1'
+
 
 # Arrays "*2\r\n:1\r\n:2\r\n"
 @dataclass(frozen=True)
@@ -110,16 +113,18 @@ ParseResult = Tuple[Optional[Frame], int]
 
 
 def parse_bulk_string(buffer: bytes, offset: int) -> Tuple[BulkString | NullBulkString | None, int]:
+    length = int(buffer[0:offset])
+    if length == -1:
+        return NullBulkString(), 5
+
     if buffer.rfind(CRLF) <= offset:
         return None, 0
 
-    length = int(buffer[0:offset])
-    if length == 0:
-        return NullBulkString(), 6
+    if length != 0:
+        content = buffer[offset + 1:offset + length + 2]
+        return BulkString(content), buffer.find(content) + length + 3
 
-    content = buffer[offset + 1:offset + length + 2]
-
-    return BulkString(content), buffer.find(content) + length + 3
+    return BulkString(b''), 6
 
 
 def parse_array(buffer: bytes, offset: int) -> Tuple[Array | NullArray | None, int]:
