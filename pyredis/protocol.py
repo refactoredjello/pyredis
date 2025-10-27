@@ -9,8 +9,6 @@ CRLF = b'\r\n'
 # b"$0\r\n\r\n" -> empty = serialized version is empty string
 # b"$-1\r\n" -> nil = serialized version is 'nil'
 # Add test cases for null bytes for array/bulk string and null data type
-# handle incomplete frames
-# Add command echo and ping
 
 class PyRedisType:
     prefix: ClassVar[str]
@@ -31,9 +29,6 @@ class PyRedisType:
 class Error(PyRedisType):
     prefix = '-'
     data: bytes
-
-    def _serialize_data(self):
-        return self.data
 
 
 # b"+full\r\n"
@@ -139,5 +134,3 @@ def parse_frame(buffer: bytes) -> ParseResult:
             return parse_array(buffer[1:], delim)
         case _:
             return None, 0
-
-
