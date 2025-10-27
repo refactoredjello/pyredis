@@ -4,12 +4,6 @@ from dataclasses import dataclass, field, InitVar
 CRLF = b'\r\n'
 
 
-# TODO:
-# add empty and nil bulk string
-# b"$0\r\n\r\n" -> empty = serialized version is empty string
-# b"$-1\r\n" -> nil = serialized version is 'nil'
-# Add test cases for null bytes for array/bulk string and null data type
-
 class PyRedisType:
     prefix: ClassVar[str]
     data: bytes
@@ -67,6 +61,10 @@ class BulkString(PyRedisType):
     def _serialize_data(self):
         return b'%(len)i%(CRLF)s%(data)s' % {b'len': len(self.data), b'CRLF': CRLF, b'data': self.data}
 
+# Null BulkString "$0\r\n\r\n"
+@dataclass(frozen=True)
+class NullBulkString(BulkString):
+    data: bytes = field(init=False, default=b'')
 
 # Arrays "*2\r\n:1\r\n:2\r\n"
 @dataclass(frozen=True)
@@ -83,22 +81,45 @@ class Array(PyRedisType):
             res += part.serialize()
         return b'%(len)i%(CRLF)s%(data)s' % {b'len': len(self.data), b'CRLF': CRLF, b'data': res}
 
+@dataclass(frozen=True)
+class NullArray(Array):
+    data: list = field(init=False, default_factory=lambda: [])
 
-Frame: TypeAlias = SimpleString | Error | Integer | BulkString | Array
+    def _serialize_data(self):
+        return b'0'
+
+
+# Null b'_\r\n'
+@dataclass(frozen=True)
+class Null(PyRedisType):
+    prefix = '_'
+    data = None
+
+    def decode(self, encoding='utf-8'):
+        return ''
+
+    def _serialize_data(self):
+        return bytes()
+
+
+Frame: TypeAlias = SimpleString | Error | Integer | BulkString | Array | Null
 ParseResult = Tuple[Optional[Frame], int]
 
 
-def parse_bulk_string(buffer: bytes, offset: int) -> Tuple[BulkString | None, int]:
+def parse_bulk_string(buffer: bytes, offset: int) -> Tuple[BulkString | NullBulkString | None, int]:
     if buffer.rfind(CRLF) <= offset:
         return None, 0
 
     length = int(buffer[0:offset])
-    content = buffer[offset + 1:offset + length + 1]
+    if length == 0:
+        return NullBulkString(), 6
 
-    return BulkString(content), buffer.find(content) + length + 2
+    content = buffer[offset + 1:offset + length + 2]
+
+    return BulkString(content), buffer.find(content) + length + 3
 
 
-def parse_array(buffer: bytes, offset: int) -> Tuple[Array | None, int]:
+def parse_array(buffer: bytes, offset: int) -> Tuple[Array | NullArray | None, int]:
     count = int(buffer[0:offset])
 
     if buffer[offset + 1:].count(CRLF) < count:
@@ -106,6 +127,9 @@ def parse_array(buffer: bytes, offset: int) -> Tuple[Array | None, int]:
 
     size = offset + 1
     res = []
+
+    if count == 0:
+        return NullArray(), size + 1
 
     for _ in range(0, count):
         data, current_size = parse_frame(buffer[size:])
@@ -132,5 +156,7 @@ def parse_frame(buffer: bytes) -> ParseResult:
             return parse_bulk_string(buffer[1:], delim)
         case Array.prefix:
             return parse_array(buffer[1:], delim)
+        case Null.prefix:
+            return Null(), 0
         case _:
             return None, 0

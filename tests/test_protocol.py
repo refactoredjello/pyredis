@@ -1,5 +1,6 @@
 import pytest
-from pyredis.protocol import parse_frame, SimpleString, Error, BulkString, Array, Integer, CRLF
+from pyredis.protocol import parse_frame, SimpleString, Error, BulkString, Array, Integer, CRLF, Null, NullBulkString, \
+    NullArray
 
 
 @pytest.mark.parametrize("buffer, expected", [
@@ -13,13 +14,16 @@ from pyredis.protocol import parse_frame, SimpleString, Error, BulkString, Array
     (b"-parterror", (None, 0)),
     (b"-Error\r\n", (Error(b"Error"), 8)),
     (b"-Error\r\n+part", (Error(b"Error"), 8)),
-    (b"$5\r\nredis", (None, 0)),
-    (b"$5\r\nredis\r\n", (BulkString(b"redis"), 10)),
-    (b"$5\r\nredis\r\n$4\r\npart", (BulkString(b"redis"), 10)),
+    (b"$4\r\nredis", (None, 0)),
+    (b"$4\r\nredis\r\n", (BulkString(b"redis"), 10)),
+    (b"$4\r\nredis\r\n$4\r\npart", (BulkString(b"redis"), 10)),
+    (b"$0\r\n\r\n", (NullBulkString(), 6)),
     (b"*2\r\n:1\r\n:2", (None, 0)),
     (b"*2\r\n:1\r\n:2\r\n", (Array([Integer(b'1'), Integer(b'2')]), 12)),
     (b"*2\r\n:1\r\n:2\r\n*2\r\n:3", (Array([Integer(b'1'), Integer(b'2')]), 12)),
     (b"*3\r\n:1\r\n:2\r\n*1\r\n+full\r\n", (Array([Integer(b"1"), Integer(b"2"), Array([SimpleString(b"full")])]), 23)),
+    (b'*0\r\n', (NullArray(), 4)),
+    (b'_\r\n', (Null(), 0))
 ])
 def test_parse_frame(buffer, expected):
     got = parse_frame(buffer)
@@ -58,22 +62,51 @@ def test_array_decode():
     expected = ['hello', 42, 'OK', [1, 2]]
     assert arr.decode() == expected
 
+
+def test_null_array_decode():
+    assert NullArray().decode() == []
+
+
+def test_null_decode():
+    assert Null().decode() == ''
+
+
+def test_null_bulk_string_decode():
+    assert NullBulkString().decode() == ''
+
+
 def test_error_serialize():
     e = Error(b'Error message')
     assert e.serialize() == b'-Error message%(CRLF)s' % {b'CRLF': CRLF}
+
 
 def test_simple_string_serialize():
     s = SimpleString(b'OK')
     assert s.serialize() == b'+OK%(CRLF)s' % {b'CRLF': CRLF}
 
+
 def test_integer_serialize():
     i = Integer(b'10')
     assert i.serialize() == b':10%(CRLF)s' % {b'CRLF': CRLF}
+
 
 def test_bulk_string_serialize():
     b = BulkString(b'full')
     assert b.serialize() == b'$4%(CRLF)sfull%(CRLF)s' % {b'CRLF': CRLF}
 
+
+def test_null_bulk_string_serialize():
+    assert NullBulkString().serialize() == b'$0%(CRLF)s%(CRLF)s' % {b'CRLF': CRLF}
+
+
 def test_array_serialize():
-    a = Array([Integer(b"1"), Integer(b"2"), Array([SimpleString(b"full")]),BulkString(b'full')])
+    a = Array([Integer(b"1"), Integer(b"2"), Array([SimpleString(b"full")]), BulkString(b'full')])
     assert a.serialize() == b'*4\r\n:1\r\n:2\r\n*1\r\n+full\r\n\r\n$4\r\nfull\r\n\r\n'
+
+
+def test_null_array_serialize():
+    assert NullArray().serialize() == b'*0%(CRLF)s' % {b'CRLF': CRLF}
+
+
+def test_null_serialize():
+    assert Null().serialize() == b'_%(CRLF)s' % {b'CRLF': CRLF}
