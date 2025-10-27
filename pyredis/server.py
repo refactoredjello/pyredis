@@ -1,17 +1,25 @@
 import socket
 import asyncio
+from protocol import parse_frame
 
 PORT = 6379 # Redis Port
 BUFFER_SIZE = 4096
 ADDRESS = 'localhost'
 
-
 async def handle_connection(client):
     loop = asyncio.get_running_loop()
+    frame_buffer = bytearray()
     while True:
         try:
             msg = await loop.sock_recv(client, BUFFER_SIZE)
-            await loop.sock_sendall(client, msg)
+            frame_buffer.extend(msg)
+            while len(frame_buffer) > 0:
+                frame, size = parse_frame(frame_buffer)
+                if frame is None:
+                    break
+                else:
+                    frame_buffer = frame_buffer[size:]
+                    await loop.sock_sendall(client, frame.serialize())
         except (ConnectionResetError, asyncio.CancelledError):
             print('Client disconnected or server shutdown')
             return
@@ -25,7 +33,7 @@ async def server():
         loop = asyncio.get_running_loop()
         conns = []
 
-        print(f'Server listening on {ADDRESS}:{PORT}')
+        print(f'Server listening on {ADDRESS}:{PORT}...')
         while True:
             try:
                 client, address =  await loop.sock_accept(s)
@@ -46,7 +54,7 @@ if __name__ == '__main__':
     try:
         asyncio.run(server())
     except KeyboardInterrupt:
-        print('Shutdown')
+        print('Shutdown...')
 
 
 

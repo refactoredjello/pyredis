@@ -61,10 +61,12 @@ class BulkString(PyRedisType):
     def _serialize_data(self):
         return b'%(len)i%(CRLF)s%(data)s' % {b'len': len(self.data), b'CRLF': CRLF, b'data': self.data}
 
+
 # Null BulkString "$0\r\n\r\n"
 @dataclass(frozen=True)
 class NullBulkString(BulkString):
     data: bytes = field(init=False, default=b'')
+
 
 # Arrays "*2\r\n:1\r\n:2\r\n"
 @dataclass(frozen=True)
@@ -80,6 +82,7 @@ class Array(PyRedisType):
         for part in self.data:
             res += part.serialize()
         return b'%(len)i%(CRLF)s%(data)s' % {b'len': len(self.data), b'CRLF': CRLF, b'data': res}
+
 
 @dataclass(frozen=True)
 class NullArray(Array):
