@@ -1,4 +1,4 @@
-from typing import Tuple, TypeAlias, Optional, Any, ClassVar
+from typing import Tuple, TypeAlias, Optional, ClassVar
 from dataclasses import dataclass, field, InitVar
 
 CRLF = b'\r\n'
@@ -157,6 +157,6 @@ def parse_frame(buffer: bytes) -> ParseResult:
         case Array.prefix:
             return parse_array(buffer[1:], delim)
         case Null.prefix:
-            return Null(), 0
+            return Null(), 3
         case _:
             return None, 0

@@ -23,7 +23,7 @@ from pyredis.protocol import parse_frame, SimpleString, Error, BulkString, Array
     (b"*2\r\n:1\r\n:2\r\n*2\r\n:3", (Array([Integer(b'1'), Integer(b'2')]), 12)),
     (b"*3\r\n:1\r\n:2\r\n*1\r\n+full\r\n", (Array([Integer(b"1"), Integer(b"2"), Array([SimpleString(b"full")])]), 23)),
     (b'*0\r\n', (NullArray(), 4)),
-    (b'_\r\n', (Null(), 0))
+    (b'_\r\n', (Null(), 3))
 ])
 def test_parse_frame(buffer, expected):
     got = parse_frame(buffer)
