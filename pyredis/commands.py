@@ -1,11 +1,70 @@
 import inspect
+from enum import Enum
 
-from pyredis.protocol import Array, Error, SimpleString, NullBulkString
+from pyredis.protocol import Array, Error, SimpleString, NullBulkString, BulkString
+
+
+class CommandParserException(Exception):
+    def __init__(self, message):
+        self.message = message
+        super.__init__(self.message)
+
+
+class SetArgs(Enum):
+    EX = 'EX'
+    PX = 'PX'
+    EXAT = 'EXAT'
+    PXAT = 'PXAT'
+    NX = 'NX'
+    XX = 'XX'
+    KEEPTTL = 'KEEPTTL'
+    GET = 'GET'
+
+
+class ParseSetArgs:
+    def __init__(self, request: Array):
+        self.args: list[BulkString] = request.decode()[3:]
+        self.commands = []
+        self.get_flag = False
+        self.set_flag = False
+        self.expiry_opt = set()
+        self.keep_ttl_flag = False
+
+    def parse_set_args(self):
+        i = 0
+        while i < len(self.args):
+            try:
+                arg = SetArgs(self.args[i].decode())
+                match arg:
+                    case SetArgs.GET:
+                        self.get_flag = True
+                    case SetArgs.EX | SetArgs.PX | SetArgs.EXAT | SetArgs.PXAT | SetArgs.KEEPTTL:
+                        if len(self.expiry_opt) or self.keep_ttl_flag:
+                            raise CommandParserException('Cannot use more than one expiry arg.')
+
+                        if arg == SetArgs.KEEPTTL:
+                            self.keep_ttl_flag = True
+                            continue
+
+                        i += 1
+                        expiry_time = int(self.args[i].decode())
+                        if expiry_time < 0:
+                            raise CommandParserException(f'{arg} must be greater than 0')
+                        self.expiry_opt.add(arg)
+                        self.expiry_opt.add(expiry_time)
+
+            except ValueError:
+                raise CommandParserException(f" The arg `{self.args[i]}` is not valid for SET command.")
+            i += 1
+        return self
+
+    def opts_exist(self):
+        return self.get_flag or self.set_flag or len(self.expiry_opt) or self.keep_ttl_flag
+
 
 _cmd_registry = {}
 
 
-# TODO Add error handling for malformed get set commands
 def register_command(name):
     def decorator(func):
         _cmd_registry[name] = func
@@ -35,7 +94,15 @@ class Commands:
     @staticmethod
     @register_command("SET")
     async def set(request: Array, datastore):
+        parser = None
+        try:
+            parser = ParseSetArgs(request).parse_set_args()
+        except Exception as e:
+            return Error(f"Failed to parse set args: {e}".encode())
 
+        if parser.opts_exist():
+            pass
+            # Do something
         key = request.data[1].decode()
         value = request.data[2]
 
