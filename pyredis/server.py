@@ -1,6 +1,6 @@
 import socket
 import asyncio
-from protocol import parse_frame
+from pyredis.protocol import parse_frame
 from pyredis.commands import Command
 from pyredis.store import DataStore
 
@@ -27,10 +27,8 @@ async def handle_connection(client, datastore):
                     await loop.sock_sendall(client, response.serialize())
                 else:
                     break
-        except (ConnectionResetError, asyncio.CancelledError):
-            raise
         finally:
-            print("Client disconnected or server shutdown")
+            print("Client disconnected")
             client.close()
 
 
@@ -52,7 +50,7 @@ async def server():
                 print(f"Handling connection from {address}")
                 conns.append(asyncio.create_task(handle_connection(client, datastore)))
 
-            except (KeyboardInterrupt, asyncio.CancelledError):
+            finally:
                 print(f"Shutting Down")
                 for c in conns:
                     c.cancel()

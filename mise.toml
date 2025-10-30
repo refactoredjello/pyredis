@@ -3,3 +3,19 @@ python = "3.14"
 
 [env]
 _.python.venv = { path = ".venv", create = true }
+
+[tasks.fmt]
+description = "Format the code base"
+run = "black ."
+
+[tasks.setup]
+description = "Install Dependencies"
+run = "mise use watchexec@latest && pip install -r requirements.txt"
+
+[tasks.serve]
+description = "Run the server"
+run = "python -m pyredis.server"
+
+[tasks.dev]
+description = "Start the server in watch mode"
+run = "watchexec -r -e py -- python -m pyredis.server"
