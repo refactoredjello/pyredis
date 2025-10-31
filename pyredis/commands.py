@@ -1,4 +1,5 @@
 import inspect
+from dataclasses import dataclass
 from enum import Enum
 from typing import Literal
 from datetime import datetime, timedelta
@@ -28,39 +29,40 @@ class SetArgs(Enum):
 ExpiryType = Literal[SetArgs.EX, SetArgs.PX, SetArgs.EXAT, SetArgs.PXAT]
 
 
-class SetExpiry:
-    def __init__(self, expiry_type: ExpiryType, value):
-        self.expiry_type = expiry_type
-        self.value = value
+@dataclass
+class ExpiryOptions:
+    expiry_type: ExpiryType
+    value: int
 
-    def get_expiry_time(self):
-        try:
-            match self.expiry_type:
-                case SetArgs.EX:
-                    return datetime.now() + timedelta(seconds=self.value)
-                case SetArgs.PX:
-                    return datetime.now() + timedelta(milliseconds=self.value)
-                case SetArgs.EXAT:
-                    return datetime.fromtimestamp(self.value)
-                case SetArgs.PXAT:
-                    return datetime.fromtimestamp(self.value // 1000)
-                case _:
-                    raise ValueError(
-                        f"No valid expiry argument given `{self.expiry_type}`"
-                    )
-        except Exception as e:
-            raise CommandParserException(
-                f"Failed to set expiry from value {self.value}: {e}"
-            )
+
+def get_expiry_time(opts: ExpiryOptions):
+    try:
+        match opts.expiry_type:
+            case SetArgs.EX:
+                return datetime.now() + timedelta(seconds=opts.value)
+            case SetArgs.PX:
+                return datetime.now() + timedelta(milliseconds=opts.value)
+            case SetArgs.EXAT:
+                return datetime.fromtimestamp(opts.value)
+            case SetArgs.PXAT:
+                return datetime.fromtimestamp(opts.value // 1000)
+            case _:
+                raise ValueError(
+                    f"No valid expiry argument given `{opts.expiry_type}`"
+                )
+    except Exception as e:
+        raise CommandParserException(
+            f"Failed to set expiry from value {opts.value}: {e}"
+        )
 
 
 class ParseSetArgs:
     def __init__(self, request: Array):
-        self.args: list[BulkString] = request.decode()[3:]
+        self.args: list = request.decode()[3:]
         self.commands = []
         self.get_flag = False
         self.set_flag = None
-        self.expiry_opt = set()
+        self.expiry_opt: ExpiryOptions | None = None
         self.keep_ttl_flag = False
 
     def parse_set_args(self):
@@ -79,7 +81,7 @@ class ParseSetArgs:
                         | SetArgs.PXAT
                         | SetArgs.KEEPTTL
                     ):
-                        if len(self.expiry_opt) or self.keep_ttl_flag:
+                        if self.expiry_opt or self.keep_ttl_flag:
                             raise CommandParserException(
                                 "Cannot use more than one expiry arg."
                             )
@@ -89,13 +91,12 @@ class ParseSetArgs:
                             continue
 
                         i += 1
-                        expiry_time = int(self.args[i].decode())
-                        if expiry_time < 0:
+                        expiry_offset = int(self.args[i])
+                        if expiry_offset < 0:
                             raise CommandParserException(
                                 f"{arg} must be greater than 0"
                             )
-                        self.expiry_opt.add(arg)
-                        self.expiry_opt.add(expiry_time)
+                        self.expiry_opt = ExpiryOptions(arg, expiry_offset)
                     case SetArgs.NX | SetArgs.XX:
                         if self.set_flag is not None:
                             raise CommandParserException(
@@ -111,7 +112,7 @@ class ParseSetArgs:
 
     def opts_exist(self):
         return (
-            self.get_flag or self.set_flag or len(self.expiry_opt) or self.keep_ttl_flag
+            self.get_flag or self.set_flag or self.expiry_opt or self.keep_ttl_flag
         )
 
 
@@ -122,6 +123,7 @@ def register_command(name):
     def decorator(func):
         _cmd_registry[name] = func
         return func
+
     return decorator
 
 
@@ -155,6 +157,14 @@ class Command:
     def not_found(self):
         return Error(f"ERR command `{self.cmd}` not found".encode())
 
+    @register_command("INFO")
+    def info(self):
+        return SimpleString(B'Running')
+
+    @register_command("COMMAND")
+    def info(self):
+        return SimpleString(B'Not Implemented')
+
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
     @register_command("SET")
     async def set_key(self):
@@ -179,7 +189,7 @@ class Command:
                 return Error(f"Key {key} does not exist and XX sent".encode())
 
         if parser.expiry_opt:
-            expiry = SetExpiry(*parser.expiry_opt).get_expiry_time()
+            expiry = get_expiry_time(parser.expiry_opt)
 
         is_set = await self.datastore.set(key, value, expiry)
 

@@ -1,13 +1,16 @@
 - Update set include optional args:
-    EX seconds -- Set the specified expire time, in seconds (a positive integer).
-    PX milliseconds -- Set the specified expire time, in milliseconds (a positive integer).
-    EXAT timestamp-seconds -- Set the specified Unix time at which the key will expire, in seconds (a positive integer).
-    PXAT timestamp-milliseconds -- Set the specified Unix time at which the key will expire, in milliseconds (a positive integer).
     KEEPTTL -- Retain the time to live associated with the key.
 
-- Handle expiry on GET command
 - Implement the expiry algorithm
 - Implement Scheduling of expiry algorithm
+- Add remaining commands
+    EXISTS - Checks if a key exists
+    DEL - Deletes a key
+    INCR - Increments the value
+    DECR- Decrements the value
+    LPUSH - Adds the value to the left hand side of the list
+    RPUSH - Adds the value to the right hand side of the list
+    LRANGE - Gets the values in the specified range
 
 
 - Dockerize app

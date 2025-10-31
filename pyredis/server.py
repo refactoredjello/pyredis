@@ -34,7 +34,6 @@ async def handle_connection(client, datastore, buffer_size):
                         error = Error(f"Unhandled error: {ue}".encode())
                         print("Unhandled error", ue)
                         await loop.sock_sendall(client, error.serialize())
-                        raise
                 else:
                     break
     except (ConnectionResetError, asyncio.CancelledError):
@@ -52,6 +51,7 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
     conns = []
 
     with socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((host, port))
         s.listen()
         s.setblocking(False)

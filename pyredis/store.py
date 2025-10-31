@@ -1,6 +1,7 @@
 import asyncio
+from asyncio import Future
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 from enum import Enum
 
 from pyredis.protocol import PyRedisData, SimpleString
@@ -21,7 +22,7 @@ class DataStoreCommands(Enum):
 class DataStore:
     def __init__(self):
         self._data: Dict[str, Record] = {}
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue[Tuple[DataStoreCommands, str, PyRedisData|None, datetime|None, Future]] = asyncio.Queue()
 
     async def run_worker(self):
         print("Data store worker started.")
@@ -35,6 +36,8 @@ class DataStore:
                 elif command == DataStoreCommands.GET:
                     result = self._data.get(key)
                     if result and result.expiry and result.expiry < current_time:
+                        del self._data[key]
+                        print(f'Deleted Key `{key}` after expiry {result.expiry.strftime("%Y-%m-%d %H:%M:%S")}')
                         future.set_result(None)
                     else:
                         future.set_result(result)
