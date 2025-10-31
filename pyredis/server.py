@@ -26,9 +26,13 @@ async def handle_connection(client, datastore):
                     try:
                         response = await Command(frame, datastore).exec()
                         await loop.sock_sendall(client, response.serialize())
-                        print('Resp: OK')
-                    except Exception as e:
-                        error = Error(f'Unhandled error: {e}'.encode())
+                        if isinstance(response, Error):
+                            print('Resp Err: ', response.decode())
+                        else:
+                            print('Resp: OK')
+                    except Exception as ue:
+                        error = Error(f'Unhandled error: {ue}'.encode())
+                        print('Unhandled error', ue)
                         await loop.sock_sendall(client, error.serialize())
                         raise
                 else:
@@ -77,3 +81,9 @@ if __name__ == "__main__":
         asyncio.run(server())
     except KeyboardInterrupt:
         print("Shutdown...")
+    except Exception as e:
+        print(f"Server error: {e}")
+    finally:
+        # Give OS time to release the port
+        import time
+        time.sleep(0.1)

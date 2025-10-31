@@ -7,10 +7,7 @@ from pyredis.protocol import Array, Error, SimpleString, NullBulkString, BulkStr
 class CommandParserException(Exception):
     def __init__(self, message):
         self.message = message
-        super.__init__(self.message)
-
-    def serialize(self):
-        return Error(self.message.encode()).serialize()
+        super().__init__(self.message)
 
 
 class SetArgs(Enum):
@@ -38,7 +35,7 @@ class ParseSetArgs:
 
         while i < len(self.args):
             try:
-                arg = SetArgs(self.args[i].decode())
+                arg = SetArgs(self.args[i])
                 match arg:
                     case SetArgs.GET:
                         self.get_flag = True
@@ -69,7 +66,7 @@ class ParseSetArgs:
 
             except ValueError:
                 raise CommandParserException(
-                    f" The arg `{self.args[i]}` is not valid for SET command."
+                    f"The arg `{self.args[i]}` is not valid for SET command. Must be one of {', '.join([v.value for v in SetArgs])}"
                 )
             i += 1
         return self
