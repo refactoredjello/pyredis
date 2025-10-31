@@ -118,6 +118,7 @@ class Command:
     def not_found(self):
         return Error(f"ERR command `{self.cmd}` not found".encode())
 
+    # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
     @register_command("SET")
     async def set_key(self):
         parser = None
@@ -136,10 +137,11 @@ class Command:
         await self.datastore.set(key, value)
         return SimpleString(b"OK")
 
+    # *2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n
     @register_command("GET")
     async def get_key(self):
         if len(self.request.data) != 2:
-            return Error(b"ERR get does not require more than one argument")
+            return Error(b"ERR GET does not require more than one argument")
         key = self.request.data[1].decode()
         value = await self.datastore.get(key)
         if value is None:
