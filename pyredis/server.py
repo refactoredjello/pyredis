@@ -27,12 +27,12 @@ async def handle_connection(client, datastore):
                         response = await Command(frame, datastore).exec()
                         await loop.sock_sendall(client, response.serialize())
                         if isinstance(response, Error):
-                            print('Resp Err: ', response.decode())
+                            print("Resp Err: ", response.decode())
                         else:
-                            print('Resp: OK')
+                            print("Resp: OK")
                     except Exception as ue:
-                        error = Error(f'Unhandled error: {ue}'.encode())
-                        print('Unhandled error', ue)
+                        error = Error(f"Unhandled error: {ue}".encode())
+                        print("Unhandled error", ue)
                         await loop.sock_sendall(client, error.serialize())
                         raise
                 else:
@@ -86,4 +86,5 @@ if __name__ == "__main__":
     finally:
         # Give OS time to release the port
         import time
+
         time.sleep(0.1)

@@ -79,7 +79,7 @@ class NullBulkString(BulkString):
 @dataclass(frozen=True)
 class Array(PyRedisType):
     prefix = "*"
-    data: list["Frame"]
+    data: list["PyRedisData"]
 
     def decode(self, encoding="utf-8"):
         return [val.decode(encoding) for val in self.data]
@@ -116,8 +116,8 @@ class Null(PyRedisType):
         return bytes()
 
 
-Frame: TypeAlias = SimpleString | Error | Integer | BulkString | Array | Null
-ParseResult = Tuple[Optional[Frame], int]
+PyRedisData: TypeAlias = SimpleString | Error | Integer | BulkString | Array | Null
+ParseResult = Tuple[Optional[PyRedisData], int]
 
 
 def parse_bulk_string(

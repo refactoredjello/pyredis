@@ -1,36 +1,50 @@
 import asyncio
+from dataclasses import dataclass
+from typing import Optional, Dict
+
+from pyredis.protocol import PyRedisData, SimpleString
+from datetime import datetime
+
+
+@dataclass
+class Record:
+    value: PyRedisData
+    expiry: Optional[datetime]
 
 
 class DataStore:
     def __init__(self):
-        self._data = {}
+        self._data: Dict[str, Record] = {}
         self._queue = asyncio.Queue()
 
     async def run_worker(self):
         print("Data store worker started.")
         while True:
-            command, key, value, future = await self._queue.get()
-
+            command, key, value, expiry, future = await self._queue.get()
+            current_time = datetime.now()
             try:
                 if command == "SET":
-                    self._data[key] = value
-                    future.set_result("OK")
+                    self._data[key] = Record(value, expiry)
+                    future.set_result(SimpleString(b'OK'))
                 elif command == "GET":
                     result = self._data.get(key)
-                    future.set_result(result)
+                    if result and result.expiry and result.expiry < current_time:
+                        future.set_result(None)
+                    else:
+                        future.set_result(result)
                 else:
                     future.set_exception(ValueError(f"Unknown command: {command}"))
             except Exception as e:
                 future.set_exception(e)
 
-    async def set(self, key, value):
+    async def set(self, key, value, expiry=None) -> SimpleString:
         loop = asyncio.get_running_loop()
         future = loop.create_future()
-        await self._queue.put(("SET", key, value, future))
+        await self._queue.put(("SET", key, value, expiry, future))
         return await future
 
-    async def get(self, key):
+    async def get(self, key) -> Record:
         loop = asyncio.get_running_loop()
         future = loop.create_future()
-        await self._queue.put(("GET", key, None, future))
+        await self._queue.put(("GET", key, None, None, future))
         return await future

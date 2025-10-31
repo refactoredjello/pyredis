@@ -26,4 +26,4 @@ mise dev
 
 **Test the server**
 
-Install the redis-cli and run `redis-cli PING`. Should get a response `PONG`. Currently, supports GET, SET, ECHO, and PING commands.
+Install the redis-cli and run `redis-cli PING`. You should get a response `PONG`. Currently, supports GET, SET, ECHO, and PING commands.
