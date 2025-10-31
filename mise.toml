@@ -1,5 +1,6 @@
 [tools]
 python = "3.14"
+watchexec = "latest"
 
 [env]
 _.python.venv = { path = ".venv", create = true }
@@ -10,7 +11,7 @@ run = "black ."
 
 [tasks.setup]
 description = "Install Dependencies"
-run = "mise use watchexec@latest && pip install -r requirements.txt"
+run = "mise install && && pip install -r requirements.txt"
 
 [tasks.serve]
 description = "Run the server"
