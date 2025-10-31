@@ -12,20 +12,18 @@ class CommandParserException(Exception):
         self.message = message
         super().__init__(self.message)
 
-
 class SetArgs(Enum):
     EX = "EX"
     PX = "PX"
     EXAT = "EXAT"
     PXAT = "PXAT"
+    KEEPTTL = "KEEPTTL"
     NX = "NX"
     XX = "XX"
-    KEEPTTL = "KEEPTTL"
     GET = "GET"
 
 
 ExpiryType = Literal[SetArgs.EX, SetArgs.PX, SetArgs.EXAT, SetArgs.PXAT]
-
 
 class SetExpiry:
     def __init__(self, expiry_type: ExpiryType, value):
@@ -158,6 +156,9 @@ class Command:
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
     @register_command("SET")
     async def set_key(self):
+        if len(self.request.data) < 3:
+            return Error(b"Wrong number of arguments for `set` command")
+
         expiry = None
         old_record = None
         key = self.request.data[1].decode()
@@ -178,7 +179,7 @@ class Command:
         if parser.expiry_opt:
             expiry = SetExpiry(*parser.expiry_opt).get_expiry_time()
 
-        result = await self.datastore.set(key, value, expiry)
+        is_set = await self.datastore.set(key, value, expiry)
 
         if parser.get_flag:
             if old_record is None:
@@ -188,7 +189,7 @@ class Command:
             else:
                 return old_record.value
 
-        return result
+        return SimpleString(b'OK') if is_set else Error(b'Failed to set key:value')
 
     # *2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n
     @register_command("GET")
