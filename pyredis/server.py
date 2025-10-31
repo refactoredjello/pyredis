@@ -1,6 +1,6 @@
 import socket
 import asyncio
-from pyredis.protocol import parse_frame
+from pyredis.protocol import parse_frame, Error
 from pyredis.commands import Command
 from pyredis.store import DataStore
 
@@ -12,8 +12,8 @@ ADDRESS = "localhost"
 async def handle_connection(client, datastore):
     loop = asyncio.get_running_loop()
     frame_buffer = bytearray()
-    while True:
-        try:
+    try:
+        while True:
             msg = await loop.sock_recv(client, BUFFER_SIZE)
             if not msg:
                 break
@@ -23,13 +23,22 @@ async def handle_connection(client, datastore):
                 frame, size = parse_frame(frame_buffer)
                 if frame is not None:
                     frame_buffer = frame_buffer[size:]
-                    response = await Command(frame, datastore).exec()
-                    await loop.sock_sendall(client, response.serialize())
+                    try:
+                        response = await Command(frame, datastore).exec()
+                        await loop.sock_sendall(client, response.serialize())
+                        print('Resp: OK')
+                    except Exception as e:
+                        error = Error(f'Unhandled error: {e}'.encode())
+                        await loop.sock_sendall(client, error.serialize())
+                        raise
                 else:
                     break
-        finally:
-            print("Client disconnected")
-            client.close()
+    except (ConnectionResetError, asyncio.CancelledError):
+        pass
+    except Exception as e:
+        print(f"Error handling connection: {e}")
+    finally:
+        client.close()
 
 
 async def server():
@@ -50,7 +59,7 @@ async def server():
                 print(f"Handling connection from {address}")
                 conns.append(asyncio.create_task(handle_connection(client, datastore)))
 
-            finally:
+            except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
                 print(f"Shutting Down")
                 for c in conns:
                     c.cancel()

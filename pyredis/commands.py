@@ -9,6 +9,9 @@ class CommandParserException(Exception):
         self.message = message
         super.__init__(self.message)
 
+    def serialize(self):
+        return Error(self.message.encode()).serialize()
+
 
 class SetArgs(Enum):
     EX = "EX"
@@ -97,12 +100,12 @@ class Command:
 
     async def exec(self):
         if self.handler == self.not_found:
-            return self.handler(self.cmd)
+            return self.handler(self)
 
         if inspect.iscoroutinefunction(self.handler):
-            return await self.handler(self.request, self.datastore)
+            return await self.handler(self)
 
-        return self.handler(self.request)
+        return self.handler(self)
 
     # ECHO  *2\r\n$4\r\nECHO\r\n$11\r\nhello world\r\n
     @register_command("ECHO")
@@ -138,8 +141,8 @@ class Command:
 
     @register_command("GET")
     async def get_key(self):
-        if len(self.request.data) != 3:
-            return Error(b"ERR wrong number of arguments for 'get' command")
+        if len(self.request.data) != 2:
+            return Error(b"ERR get does not require more than one argument")
         key = self.request.data[1].decode()
         value = await self.datastore.get(key)
         if value is None:
