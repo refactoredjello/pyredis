@@ -4,14 +4,10 @@
 - Implement the expiry algorithm
 - Implement Scheduling of expiry algorithm
 - Add remaining commands
-    EXISTS - Checks if a key exists
-    DEL - Deletes a key
-    INCR - Increments the value
-    DECR- Decrements the value
     LPUSH - Adds the value to the left hand side of the list
     RPUSH - Adds the value to the right hand side of the list
     LRANGE - Gets the values in the specified range
-
+- Implement Append File for persistence
 
 - Dockerize app
 - Update readme with setup and run instructions

@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Literal
 from datetime import datetime, timedelta
 
-from pyredis.protocol import Array, Error, SimpleString, NullBulkString, BulkString
+from pyredis.protocol import Array, Error, SimpleString, NullBulkString, BulkString, Integer
 from pyredis.store import DataStore
 
 
@@ -165,6 +165,32 @@ class Command:
     def info(self):
         return SimpleString(B'Not Implemented')
 
+    @register_command("EXISTS")
+    async def exists(self):
+        key = self.request.data[1].decode()
+        if await self.datastore.exists(key):
+            return SimpleString(b'OK')
+        return NullBulkString()
+
+    @register_command("DELETE")
+    async def delete(self):
+        key = self.request.data[1].decode()
+        if await self.datastore.delete(key):
+            return SimpleString(b"OK")
+        return NullBulkString()
+
+    @register_command("INCR")
+    async def incr(self):
+        key = self.request.data[1].decode()
+        result = await self.datastore.incr(key)
+        return result if result else NullBulkString()
+
+    @register_command("DECR")
+    async def decr(self):
+        key = self.request.data[1].decode()
+        result = await self.datastore.decr(key)
+        return result if result else NullBulkString()
+
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
     @register_command("SET")
     async def set_key(self):
@@ -175,6 +201,11 @@ class Command:
         old_record = None
         key = self.request.data[1].decode()
         value = self.request.data[2]
+
+        try:
+            value = Integer(value.decode().encode())
+        except ValueError:
+            pass
 
         try:
             parser = ParseSetArgs(self.request).parse_set_args()
@@ -214,4 +245,7 @@ class Command:
         result = await self.datastore.get(key)
         if result is None:
             return NullBulkString()
+
+        if isinstance(result.value, Integer):
+            return BulkString(str(result.value.decode()).encode())
         return result.value

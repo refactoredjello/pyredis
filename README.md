@@ -4,6 +4,8 @@ PyRedis is a from-scratch implementation of a Redis server in python. The motiva
 The goal is to get a better understanding of networking programming via a full implementation of the RESP protocol, 
 and a lower level understanding of in-memory data structures and stores.
 
+Currently, supports GET, SET, ECHO, PING, INCR, DECR commands.
+
 **Setup**
 
 The app uses mise-en-place for runtime version management and development task runners.  
@@ -26,4 +28,4 @@ mise dev
 
 **Test the server**
 
-Install the redis-cli and run `redis-cli PING`. You should get a response `PONG`. Currently, supports GET, SET, ECHO, and PING commands.
+Install the redis-cli and run `redis-cli PING`. You should get a response `PONG`. 
