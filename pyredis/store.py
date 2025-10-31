@@ -12,9 +12,10 @@ class Record:
     value: PyRedisData
     expiry: Optional[datetime]
 
+
 class DataStoreCommands(Enum):
-    SET = 'SET'
-    GET = 'GET'
+    SET = "SET"
+    GET = "GET"
 
 
 class DataStore:

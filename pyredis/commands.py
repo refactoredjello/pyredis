@@ -8,9 +8,11 @@ from pyredis.store import DataStore
 
 
 class CommandParserException(Exception):
-    def __init__(self, message):
+    def __init__(self, message, request=None):
         self.message = message
+        self.request = request
         super().__init__(self.message)
+
 
 class SetArgs(Enum):
     EX = "EX"
@@ -24,6 +26,7 @@ class SetArgs(Enum):
 
 
 ExpiryType = Literal[SetArgs.EX, SetArgs.PX, SetArgs.EXAT, SetArgs.PXAT]
+
 
 class SetExpiry:
     def __init__(self, expiry_type: ExpiryType, value):
@@ -42,7 +45,7 @@ class SetExpiry:
                 case SetArgs.PXAT:
                     return datetime.fromtimestamp(self.value // 1000)
                 case _:
-                    raise Exception(
+                    raise ValueError(
                         f"No valid expiry argument given `{self.expiry_type}`"
                     )
         except Exception as e:
@@ -93,7 +96,7 @@ class ParseSetArgs:
                             )
                         self.expiry_opt.add(arg)
                         self.expiry_opt.add(expiry_time)
-                    case (SetArgs.NX | SetArgs.XX):
+                    case SetArgs.NX | SetArgs.XX:
                         if self.set_flag is not None:
                             raise CommandParserException(
                                 "Can only set NX or XX, not both"
@@ -131,9 +134,6 @@ class Command:
         self.datastore = datastore
 
     async def exec(self):
-        if self.handler == self.not_found:
-            return self.handler(self)
-
         if inspect.iscoroutinefunction(self.handler):
             return await self.handler(self)
 
@@ -185,11 +185,13 @@ class Command:
             if old_record is None:
                 return NullBulkString()
             if not isinstance(old_record.value, BulkString):
-                return Error(f"ERR old key {old_record.value.decode()} is not string".encode())
+                return Error(
+                    f"ERR old key {old_record.value.decode()} is not string".encode()
+                )
             else:
                 return old_record.value
 
-        return SimpleString(b'OK') if is_set else Error(b'Failed to set key:value')
+        return SimpleString(b"OK") if is_set else Error(b"Failed to set key:value")
 
     # *2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n
     @register_command("GET")

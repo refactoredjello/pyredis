@@ -76,7 +76,7 @@ async def server():
                 raise
 
 
-if __name__ == "__main__":
+def main():
     try:
         asyncio.run(server())
     except KeyboardInterrupt:
@@ -88,3 +88,7 @@ if __name__ == "__main__":
         import time
 
         time.sleep(0.1)
+
+
+if __name__ == "__main__":
+    main()
