@@ -15,8 +15,8 @@ run = "mise install && && pip install -r requirements.txt"
 
 [tasks.serve]
 description = "Run the server"
-run = "python -m pyredis.server"
+run = "python -m pyredis.main"
 
 [tasks.dev]
 description = "Start the server in watch mode"
-run = "watchexec -r -e py -- python -m pyredis.server"
+run = "watchexec -r -e py -- python -m pyredis.main"

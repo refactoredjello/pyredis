@@ -6,15 +6,15 @@ from pyredis.store import DataStore
 
 PORT = 6379  # Redis Port
 BUFFER_SIZE = 4096
-ADDRESS = "localhost"
+HOST = "localhost"
 
 
-async def handle_connection(client, datastore):
+async def handle_connection(client, datastore, buffer_size):
     loop = asyncio.get_running_loop()
     frame_buffer = bytearray()
     try:
         while True:
-            msg = await loop.sock_recv(client, BUFFER_SIZE)
+            msg = await loop.sock_recv(client, buffer_size)
             if not msg:
                 break
 
@@ -45,23 +45,23 @@ async def handle_connection(client, datastore):
         client.close()
 
 
-async def server():
+async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
     datastore = DataStore()
     loop = asyncio.get_running_loop()
     worker_task = asyncio.create_task(datastore.run_worker())
     conns = []
 
     with socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) as s:
-        s.bind((ADDRESS, PORT))
+        s.bind((host, port))
         s.listen()
         s.setblocking(False)
 
-        print(f"Server listening on {ADDRESS}:{PORT}...")
+        print(f"Server listening on {host}:{port}...")
         while True:
             try:
                 client, address = await loop.sock_accept(s)
                 print(f"Handling connection from {address}")
-                conns.append(asyncio.create_task(handle_connection(client, datastore)))
+                conns.append(asyncio.create_task(handle_connection(client, datastore, buffer_size)))
 
             except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
                 print(f"Shutting Down")
@@ -74,21 +74,3 @@ async def server():
                     await asyncio.gather(*conns, return_exceptions=True)
                 await asyncio.gather(worker_task, return_exceptions=True)
                 raise
-
-
-def main():
-    try:
-        asyncio.run(server())
-    except KeyboardInterrupt:
-        print("Shutdown...")
-    except Exception as e:
-        print(f"Server error: {e}")
-    finally:
-        # Give OS time to release the port
-        import time
-
-        time.sleep(0.1)
-
-
-if __name__ == "__main__":
-    main()

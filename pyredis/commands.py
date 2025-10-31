@@ -122,18 +122,20 @@ def register_command(name):
     def decorator(func):
         _cmd_registry[name] = func
         return func
-
     return decorator
 
 
 class Command:
     def __init__(self, request: Array, datastore: DataStore):
-        self.cmd = request.data[0].decode()
+        self.cmd = request.data[0].decode().upper()
         self.request = request
-        self.handler = _cmd_registry.get(self.cmd, self.not_found)
+        self.handler = _cmd_registry.get(self.cmd)
         self.datastore = datastore
 
     async def exec(self):
+        if self.handler is None:
+            return self.not_found()
+
         if inspect.iscoroutinefunction(self.handler):
             return await self.handler(self)
 
