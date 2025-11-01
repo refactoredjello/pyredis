@@ -11,6 +11,7 @@ from pyredis.protocol import (
     NullBulkString,
     BulkString,
     Integer,
+    NullArray,
 )
 from pyredis.store import DataStore, Record
 
@@ -124,11 +125,11 @@ _cmd_registry = {}
 
 def register_command(name):
     def decorator(func):
-        def log_request(*args, **kwargs):
-            print(f"REQ - {name}: {args[0].request.decode()}")
-            return func(*args, **kwargs)
+        async def log_request(*args, **kwargs):
+            print(f"CMD - {name}: {args[0].request.decode()}")
+            return await func(*args, **kwargs)
         _cmd_registry[name] = log_request
-        return func
+        return log_request
     return decorator
 
 
@@ -142,32 +143,28 @@ class Command:
     async def exec(self):
         if self.handler is None:
             return self.not_found()
-
-        if inspect.iscoroutinefunction(self.handler):
-            return await self.handler(self)
-
-        return self.handler(self)
+        return await self.handler(self)
 
     # ECHO  *2\r\n$4\r\nECHO\r\n$11\r\nhello world\r\n
     @register_command("ECHO")
-    def echo(self):
+    async def echo(self):
         return self.request.data[1]
 
     # *1\r\n$4\r\nPING\r\n
     @register_command("PING")
-    def ping(self):
+    async def ping(self):
         return SimpleString(b"PONG")
 
     @register_command("NOT_FOUND")
-    def not_found(self):
+    async def not_found(self):
         return Error(f"ERR command `{self.cmd}` not found".encode())
 
     @register_command("INFO")
-    def info(self):
+    async def info(self):
         return SimpleString(b"Running")
 
     @register_command("COMMAND")
-    def info(self):
+    async def info(self):
         return SimpleString(b"Not Implemented")
 
     @register_command("EXISTS")
@@ -310,3 +307,32 @@ class Command:
             return Integer(str(len(new_value.data)).encode())
         else:
             return Error(b"Failed to set new list at key")
+
+
+    @register_command("LRANGE")
+    async def lrange(self):
+        req_len = len(self.request.data)
+        if req_len != 4:
+            return Error(f'The cmd lrange requires 4 arguments, {req_len} given'.encode())
+
+        key = self.request.data[1].decode()
+        try:
+            start = int(self.request.data[2].decode())
+            stop = int(self.request.data[3].decode()) + 1
+        except TypeError:
+            return Error(b'Slice indices must be ints')
+
+        current = await self.datastore.get(key)
+        if not current or not isinstance(current.value, Array):
+            return NullArray()
+
+        if start >= len(current.value.data):
+            return NullArray()
+
+        if start < 0 and start + len(current.value.data) < 0:
+            return NullArray
+
+        if stop > len(current.value.data):
+            return Array(current.value.data[start:])
+
+        return Array(current.value.data[start:stop])

@@ -128,7 +128,7 @@ def test_array_serialize():
             BulkString(b"full"),
         ]
     )
-    assert a.serialize() == b"*4\r\n:1\r\n:2\r\n*1\r\n+full\r\n\r\n$4\r\nfull\r\n\r\n"
+    assert a.serialize() == b"*4\r\n:1\r\n:2\r\n*1\r\n+full\r\n$4\r\nfull\r\n"
 
 
 def test_null_array_serialize():

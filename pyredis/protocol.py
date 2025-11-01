@@ -12,6 +12,9 @@ class PyRedisType:
         return self.data.decode()
 
     def serialize(self):
+        if isinstance(self, Array) and not isinstance(self, NullArray):
+            return self.prefix.encode() + self._serialize_data()
+
         return self.prefix.encode() + self._serialize_data() + CRLF
 
     def _serialize_data(self):

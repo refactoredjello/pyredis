@@ -36,8 +36,10 @@ async def handle_connection(client, datastore, buffer_size):
                         await loop.sock_sendall(client, error.serialize())
                 else:
                     break
-    except (ConnectionResetError, asyncio.CancelledError):
+    except ConnectionResetError:
         pass
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         print(f"Error handling connection: {e}")
     finally:
