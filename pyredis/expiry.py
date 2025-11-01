@@ -11,7 +11,7 @@ INTERVAL_SECONDS = 300
 
 async def run_cleanup_in_background(datastore: DataStore, interval_seconds=INTERVAL_SECONDS):
     """Get 20% of the random keys, if the key expired, datastore will cull it automatically"""
-    print(f'Running expiry checks every {interval_seconds} seconds')
+    print(f'Expiry Interval: {interval_seconds} seconds')
     while True:
         try:
             size = await datastore.size()

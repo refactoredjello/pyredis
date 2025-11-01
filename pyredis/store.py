@@ -71,7 +71,7 @@ class DataStore:
         ] = asyncio.Queue()
 
     async def run_worker(self):
-        print("Data store worker started.")
+        print("Data Store: up")
         while True:
             command, key, value, expiry, future = await self._queue.get()
             current_time = datetime.now()

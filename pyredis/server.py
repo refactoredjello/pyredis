@@ -50,8 +50,8 @@ async def handle_connection(client, datastore, buffer_size):
 async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
     datastore = DataStore()
     loop = asyncio.get_running_loop()
-    cull_worker = asyncio.create_task(run_cleanup_in_background(datastore))
     worker_task = asyncio.create_task(datastore.run_worker())
+    cull_worker = asyncio.create_task(run_cleanup_in_background(datastore))
     conns = []
 
     with socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) as s:
@@ -60,7 +60,7 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
         s.listen()
         s.setblocking(False)
 
-        print(f"Server listening on {host}:{port}...")
+        print(f"Server Listening: {host}:{port}...")
         while True:
             try:
                 client, address = await loop.sock_accept(s)
