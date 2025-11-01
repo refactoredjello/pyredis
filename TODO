@@ -3,9 +3,6 @@
 
 - Implement the expiry algorithm
 - Implement Scheduling of expiry algorithm
-- Add remaining commands
-    LPUSH - Adds the value to the left hand side of the list
-    RPUSH - Adds the value to the right hand side of the list
     LRANGE - Gets the values in the specified range
 - Implement Append File for persistence
 

@@ -5,7 +5,7 @@ from typing import Literal
 from datetime import datetime, timedelta
 
 from pyredis.protocol import Array, Error, SimpleString, NullBulkString, BulkString, Integer
-from pyredis.store import DataStore
+from pyredis.store import DataStore, Record
 
 
 class CommandParserException(Exception):
@@ -168,11 +168,11 @@ class Command:
     @register_command("EXISTS")
     async def exists(self):
         key = self.request.data[1].decode()
-        if await self.datastore.exists(key):
+        if await self.datastore.get(key):
             return SimpleString(b'OK')
         return NullBulkString()
 
-    @register_command("DELETE")
+    @register_command("DEL")
     async def delete(self):
         key = self.request.data[1].decode()
         if await self.datastore.delete(key):
@@ -182,14 +182,24 @@ class Command:
     @register_command("INCR")
     async def incr(self):
         key = self.request.data[1].decode()
-        result = await self.datastore.incr(key)
-        return result if result else NullBulkString()
+        result = await self.datastore.get(key)
+        if result and isinstance(result.value, Integer):
+            new_value = Integer(str(result.value.decode() + 1).encode())
+            if await self.datastore.set(key, new_value, result.expiry):
+                return new_value
+
+        return NullBulkString()
 
     @register_command("DECR")
     async def decr(self):
         key = self.request.data[1].decode()
-        result = await self.datastore.decr(key)
-        return result if result else NullBulkString()
+        result = await self.datastore.get(key)
+        if result and isinstance(result.value, Integer):
+            new_value = Integer(str(result.value.decode() - 1).encode())
+            if await self.datastore.set(key, new_value, result.expiry):
+                return new_value
+
+        return NullBulkString()
 
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
     @register_command("SET")
@@ -240,7 +250,7 @@ class Command:
     @register_command("GET")
     async def get_key(self):
         if len(self.request.data) != 2:
-            return Error(b"ERR GET does not require more than one argument")
+            return Error(b"GET does not require more than one argument")
         key = self.request.data[1].decode()
         result = await self.datastore.get(key)
         if result is None:
@@ -249,3 +259,41 @@ class Command:
         if isinstance(result.value, Integer):
             return BulkString(str(result.value.decode()).encode())
         return result.value
+
+    @register_command("LPUSH")
+    async def lpush(self):
+        if len(self.request.data) < 3:
+            return Error(b"Wrong number of arguments for `lpush` command")
+        key = self.request.data[1].decode()
+        values = self.request.data[2:]
+        current = await self.datastore.get(key)
+        new_value = Array(list(reversed(values)))
+        if current:
+            if not isinstance(current.value, Array):
+                return Error(f"Value at this key is not an array: {current.value.decode()}".encode())
+            new_value.data.extend(current.value.data)
+
+        if await self.datastore.set(key, new_value, current.expiry if current else None):
+            return Integer(str(len(new_value.data)).encode())
+        else:
+            return Error(b'Failed to set new list at key')
+
+    @register_command("RPUSH")
+    async def lpush(self):
+        if len(self.request.data) < 3:
+            return Error(b"Wrong number of arguments for `lpush` command")
+        key = self.request.data[1].decode()
+        values = self.request.data[2:]
+        current = await self.datastore.get(key)
+        if current:
+            if not isinstance(current.value, Array):
+                return Error(f"Value at this key is not an array: {current.value.decode()}".encode())
+            current.value.data.extend(values)
+            new_value = current.value
+        else:
+            new_value = Array(values)
+
+        if await self.datastore.set(key, new_value, current.expiry if current else None):
+            return Integer(str(len(new_value.data)).encode())
+        else:
+            return Error(b'Failed to set new list at key')

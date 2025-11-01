@@ -17,10 +17,7 @@ class Record:
 class DataStoreCommands(Enum):
     SET = "SET"
     GET = "GET"
-    EXISTS = "EXISTS"
     DEL = 'DEL'
-    INCR = 'INCR'
-    DECR = 'DECR'
 
 
 class DataStore:
@@ -37,29 +34,9 @@ class DataStore:
             current_time = datetime.now()
             try:
                 match command:
-                    case DataStoreCommands.DECR:
-                        record = self._data.get(key)
-                        if record and isinstance(record.value, Integer):
-                            new_value = record.value.decode() - 1
-                            new_record = Record(Integer(str(new_value).encode()), record.expiry)
-                            self._data[key] = new_record
-                            future.set_result(new_record.value)
-                        else:
-                            future.set_result(False)
-                    case DataStoreCommands.INCR:
-                        record = self._data.get(key)
-                        if record and isinstance(record.value, Integer):
-                            new_value = record.value.decode() + 1
-                            new_record = Record(Integer(str(new_value).encode()), record.expiry)
-                            self._data[key] = new_record
-                            future.set_result(new_record.value)
-                        else:
-                            future.set_result(False)
                     case DataStoreCommands.SET:
                         self._data[key] = Record(value, expiry)
                         future.set_result(True)
-                    case DataStoreCommands.EXISTS:
-                        future.set_result(key in self._data)
                     case DataStoreCommands.DEL:
                         if key in self._data:
                             del self._data[key]
@@ -81,12 +58,6 @@ class DataStore:
             except Exception as e:
                 future.set_exception(e)
 
-    async def exists(self, key) -> bool:
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        await self._queue.put((DataStoreCommands.EXISTS, key, None, None, future))
-        return await future
-
     async def delete(self, key) -> bool:
         loop = asyncio.get_running_loop()
         future = loop.create_future()
@@ -99,22 +70,10 @@ class DataStore:
         await self._queue.put((DataStoreCommands.SET, key, value, expiry, future))
         return await future
 
-    async def get(self, key) -> Record:
+    async def get(self, key) -> Record | None:
         loop = asyncio.get_running_loop()
         future = loop.create_future()
         await self._queue.put((DataStoreCommands.GET, key, None, None, future))
-        return await future
-
-    async def incr(self, key) -> Integer | bool:
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        await self._queue.put((DataStoreCommands.INCR, key, None, None, future))
-        return await future
-
-    async def decr(self, key) -> Integer | bool:
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        await self._queue.put((DataStoreCommands.DECR, key, None, None, future))
         return await future
 
 
