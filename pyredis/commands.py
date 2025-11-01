@@ -4,7 +4,14 @@ from enum import Enum
 from typing import Literal
 from datetime import datetime, timedelta
 
-from pyredis.protocol import Array, Error, SimpleString, NullBulkString, BulkString, Integer
+from pyredis.protocol import (
+    Array,
+    Error,
+    SimpleString,
+    NullBulkString,
+    BulkString,
+    Integer,
+)
 from pyredis.store import DataStore, Record
 
 
@@ -47,9 +54,7 @@ def get_expiry_time(opts: ExpiryOptions):
             case SetArgs.PXAT:
                 return datetime.fromtimestamp(opts.value // 1000)
             case _:
-                raise ValueError(
-                    f"No valid expiry argument given `{opts.expiry_type}`"
-                )
+                raise ValueError(f"No valid expiry argument given `{opts.expiry_type}`")
     except Exception as e:
         raise CommandParserException(
             f"Failed to set expiry from value {opts.value}: {e}"
@@ -111,9 +116,7 @@ class ParseSetArgs:
         return self
 
     def opts_exist(self):
-        return (
-            self.get_flag or self.set_flag or self.expiry_opt or self.keep_ttl_flag
-        )
+        return self.get_flag or self.set_flag or self.expiry_opt or self.keep_ttl_flag
 
 
 _cmd_registry = {}
@@ -121,9 +124,11 @@ _cmd_registry = {}
 
 def register_command(name):
     def decorator(func):
-        _cmd_registry[name] = func
+        def log_request(*args, **kwargs):
+            print(f"REQ - {name}: {args[0].request.decode()}")
+            return func(*args, **kwargs)
+        _cmd_registry[name] = log_request
         return func
-
     return decorator
 
 
@@ -159,17 +164,17 @@ class Command:
 
     @register_command("INFO")
     def info(self):
-        return SimpleString(B'Running')
+        return SimpleString(b"Running")
 
     @register_command("COMMAND")
     def info(self):
-        return SimpleString(B'Not Implemented')
+        return SimpleString(b"Not Implemented")
 
     @register_command("EXISTS")
     async def exists(self):
         key = self.request.data[1].decode()
         if await self.datastore.get(key):
-            return SimpleString(b'OK')
+            return SimpleString(b"OK")
         return NullBulkString()
 
     @register_command("DEL")
@@ -270,13 +275,17 @@ class Command:
         new_value = Array(list(reversed(values)))
         if current:
             if not isinstance(current.value, Array):
-                return Error(f"Value at this key is not an array: {current.value.decode()}".encode())
+                return Error(
+                    f"Value at this key is not an array: {current.value.decode()}".encode()
+                )
             new_value.data.extend(current.value.data)
 
-        if await self.datastore.set(key, new_value, current.expiry if current else None):
+        if await self.datastore.set(
+            key, new_value, current.expiry if current else None
+        ):
             return Integer(str(len(new_value.data)).encode())
         else:
-            return Error(b'Failed to set new list at key')
+            return Error(b"Failed to set new list at key")
 
     @register_command("RPUSH")
     async def lpush(self):
@@ -287,13 +296,17 @@ class Command:
         current = await self.datastore.get(key)
         if current:
             if not isinstance(current.value, Array):
-                return Error(f"Value at this key is not an array: {current.value.decode()}".encode())
+                return Error(
+                    f"Value at this key is not an array: {current.value.decode()}".encode()
+                )
             current.value.data.extend(values)
             new_value = current.value
         else:
             new_value = Array(values)
 
-        if await self.datastore.set(key, new_value, current.expiry if current else None):
+        if await self.datastore.set(
+            key, new_value, current.expiry if current else None
+        ):
             return Integer(str(len(new_value.data)).encode())
         else:
-            return Error(b'Failed to set new list at key')
+            return Error(b"Failed to set new list at key")
