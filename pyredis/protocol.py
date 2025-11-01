@@ -129,6 +129,8 @@ class Array(PyRedisType):
         elif isinstance(index, slice):
             new_array = None
             start, stop, step = index.indices(len(self))
+            if start < 0 or stop < 0 or step != 1:
+                raise IndexError("Currently only forward slicing in steps of 1 are allowed")
             for i in range(stop):
                 if i >= start - 1:
                     new_array = Array(curr, None, stop - start + 1)
