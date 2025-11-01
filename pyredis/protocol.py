@@ -75,28 +75,89 @@ class NullBulkString(BulkString):
         return b"-1"
 
 
+class ArrayNode:
+    def __init__(self, val: PyRedisType, next_node=None):
+        self.val = val
+        self.next = next_node
+
+    def decode(self):
+        return self.val.decode()
+
+    def serialize(self):
+        return self.val.serialize()
+
+
 # Arrays "*2\r\n:1\r\n:2\r\n"
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class Array(PyRedisType):
     prefix = "*"
-    data: list["PyRedisData"]
+    data: ArrayNode
+    tail: ArrayNode | None
+    _len: int
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.data.next:
+            return self.data.next
+        else:
+            raise StopIteration
+
+    def __len__(self):
+        if self._len:
+            return self._len
+
+        count = 0
+        for _ in self:
+            count += 1
+        return count
+
+    def __getitem__(self, index):
+        curr = self.data
+        if isinstance(index, int):
+
+            if index < 0:
+                index = +len(self)
+            if index > len(self) or index < 0:
+                raise IndexError("Index out of range")
+
+            for _ in range(index):
+                curr = curr.next
+            return curr
+
+        elif isinstance(index, slice):
+            new_array = None
+            start, stop, step = index.indices(len(self))
+            for i in range(stop):
+                if i >= start - 1:
+                    new_array = Array(curr, None, stop - start + 1)
+                if curr.next:
+                    curr = curr.next
+                else:
+                    new_array.tail = curr
+                    break
+            new_array.tail.next = None
+            return new_array
+
+        raise TypeError("Index must be an int or slice")
 
     def decode(self, encoding="utf-8"):
-        return [val.decode(encoding) for val in self.data]
+        return [node.val.decode(encoding) for node in self]
 
     def _serialize_data(self):
         res = b""
         for part in self.data:
             res += part.serialize()
         return b"%(len)i%(CRLF)s%(data)s" % {
-            b"len": len(self.data),
+            b"len": len(self),
             b"CRLF": CRLF,
             b"data": res,
         }
 
 
 @dataclass(frozen=True)
-class NullArray(Array):
+class NullArray(PyRedisType):
     data: list = field(init=False, default_factory=lambda: [])
 
     def _serialize_data(self):
@@ -146,17 +207,20 @@ def parse_array(buffer: bytes, offset: int) -> Tuple[Array | NullArray | None, i
         return None, 0
 
     size = offset + 1
-    res = []
 
     if count == 0:
         return NullArray(), size + 1
 
+    sentinel = ArrayNode(Null())
+    curr = sentinel
+
     for _ in range(0, count):
         data, current_size = parse_frame(buffer[size:])
-        res.append(data)
+        curr.next = ArrayNode(data)
+        curr = curr.next
         size += current_size
 
-    return Array(res), size + 1
+    return Array(sentinel.next, curr, count), size + 1
 
 
 def parse_frame(buffer: bytes) -> ParseResult:

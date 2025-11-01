@@ -1,5 +1,7 @@
 import socket
 import asyncio
+import traceback
+
 from pyredis.protocol import parse_frame, Error
 from pyredis.commands import Command
 from pyredis.store import DataStore
@@ -30,9 +32,9 @@ async def handle_connection(client, datastore, buffer_size):
                             print("Resp Err: ", response.decode())
                         else:
                             print("Resp: OK")
-                    except Exception as ue:
-                        error = Error(f"Unhandled error: {ue}".encode())
-                        print("Unhandled error", ue)
+                    except Exception:
+                        print("Unhandled error", traceback.format_exc())
+                        error = Error(f"Server error".encode())
                         await loop.sock_sendall(client, error.serialize())
                 else:
                     break
