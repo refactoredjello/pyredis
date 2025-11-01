@@ -20,3 +20,7 @@ run = "python -m pyredis.main"
 [tasks.dev]
 description = "Start the server in watch mode"
 run = "watchexec -r -e py -- python -m pyredis.main"
+
+[tasks.benchmark]
+description = "Run redis benchmark"
+run = "redis-benchmark -t set,get -n 10000 -q"

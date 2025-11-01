@@ -28,4 +28,6 @@ mise dev
 
 **Test the server**
 
-Install the redis-cli and run `redis-cli PING`. You should get a response `PONG`. 
+ - Install the redis-cli and run `redis-cli PING`. You should get a response `PONG`. 
+ - Create 1000 keys `for i in {1..1000}; do (redis-cli set $i $i EX 10); done` and observe they are expired over time with `redis-cli DBSZIE`
+ - Run redis benchmark task with `mise benchmark` to benchmark set and get
