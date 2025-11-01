@@ -128,8 +128,10 @@ def register_command(name):
         async def log_request(*args, **kwargs):
             print(f"CMD - {name}: {args[0].request.decode()}")
             return await func(*args, **kwargs)
+
         _cmd_registry[name] = log_request
         return log_request
+
     return decorator
 
 
@@ -149,6 +151,10 @@ class Command:
     @register_command("ECHO")
     async def echo(self):
         return self.request.data[1]
+
+    @register_command("DBSIZE")
+    async def db_size(self):
+        return Integer(str(await self.datastore.size()).encode())
 
     # *1\r\n$4\r\nPING\r\n
     @register_command("PING")
@@ -263,7 +269,7 @@ class Command:
         return result.value
 
     @register_command("LPUSH")
-    async def lpush(self):
+    async def l_push(self):
         if len(self.request.data) < 3:
             return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
@@ -285,7 +291,7 @@ class Command:
             return Error(b"Failed to set new list at key")
 
     @register_command("RPUSH")
-    async def lpush(self):
+    async def l_push(self):
         if len(self.request.data) < 3:
             return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
@@ -308,19 +314,20 @@ class Command:
         else:
             return Error(b"Failed to set new list at key")
 
-
     @register_command("LRANGE")
-    async def lrange(self):
+    async def l_range(self):
         req_len = len(self.request.data)
         if req_len != 4:
-            return Error(f'The cmd lrange requires 4 arguments, {req_len} given'.encode())
+            return Error(
+                f"The cmd lrange requires 4 arguments, {req_len} given".encode()
+            )
 
         key = self.request.data[1].decode()
         try:
             start = int(self.request.data[2].decode())
             stop = int(self.request.data[3].decode()) + 1
         except TypeError:
-            return Error(b'Slice indices must be ints')
+            return Error(b"Slice indices must be ints")
 
         current = await self.datastore.get(key)
         if not current or not isinstance(current.value, Array):

@@ -1,4 +1,5 @@
 from pyredis.server import server, PORT, BUFFER_SIZE, HOST
+from pyredis.expiry import INTERVAL_SECONDS
 import argparse
 import asyncio
 
@@ -9,24 +10,35 @@ def main():
         "the RESP protocol."
     )
     parser.add_argument(
-        "-a","--address",
+        "-a",
+        "--address",
         type=str,
         help="The address to listen for requests, defaults to a local interface.",
         default=HOST,
         required=False,
     )
     parser.add_argument(
-        "-p", "--port",
+        "-p",
+        "--port",
         type=int,
         help="The server port defaults to 6379",
         default=PORT,
         required=False,
     )
     parser.add_argument(
-        "-b", "--buffer_size",
+        "-b",
+        "--buffer_size",
         type=int,
         help="The buffer size for messages",
         default=BUFFER_SIZE,
+        required=False,
+    )
+    parser.add_argument(
+        "-e",
+        "--expiry_interval",
+        type=int,
+        help="The interval in seconds between running background expiry",
+        default=INTERVAL_SECONDS,
         required=False,
     )
 

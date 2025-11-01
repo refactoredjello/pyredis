@@ -1,10 +1,5 @@
 - Update set include optional args:
     KEEPTTL -- Retain the time to live associated with the key.
 
-- Implement the expiry algorithm
-- Implement Scheduling of expiry algorithm
-    LRANGE - Gets the values in the specified range
 - Implement Append File for persistence
-
 - Dockerize app
-- Update readme with setup and run instructions

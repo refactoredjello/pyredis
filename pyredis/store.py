@@ -1,4 +1,5 @@
 import asyncio
+import random
 from asyncio import Future
 from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
@@ -17,14 +18,56 @@ class Record:
 class DataStoreCommands(Enum):
     SET = "SET"
     GET = "GET"
-    DEL = 'DEL'
+    DEL = "DEL"
+    SIZE = "SIZE"
+
+
+class KeyIndexStore:
+    def __init__(self):
+        self._keys = []
+        self._indices = {}
+
+    def append(self, key):
+        self._keys.append(key)
+        self._indices[key] = len(self._keys) - 1
+
+        return self
+
+    def delete(self, key):
+        if not self._keys:
+            return self
+
+        idx = self._indices[key]
+        del self._indices[key]
+        tail = self._keys.pop()
+
+        if tail == key:
+            return self
+        self._indices[tail] = idx
+        self._keys[idx] = tail
+
+        return self
+
+    def get_random_key(self):
+        if not self._keys:
+            return None
+
+        random_index = random.randint(0, len(self._keys) - 1)
+        return self._keys[random_index]
 
 
 class DataStore:
     def __init__(self):
         self._data: Dict[str, Record] = {}
+        self.key_index: KeyIndexStore = KeyIndexStore()
         self._queue: asyncio.Queue[
-            Tuple[DataStoreCommands, str, PyRedisData | None, datetime | None, Future]
+            Tuple[
+                DataStoreCommands,
+                str | None,
+                PyRedisData | None,
+                datetime | None,
+                Future,
+            ]
         ] = asyncio.Queue()
 
     async def run_worker(self):
@@ -34,12 +77,16 @@ class DataStore:
             current_time = datetime.now()
             try:
                 match command:
+                    case DataStoreCommands.SIZE:
+                        future.set_result(len(self._data))
                     case DataStoreCommands.SET:
                         self._data[key] = Record(value, expiry)
+                        self.key_index.append(key)
                         future.set_result(True)
                     case DataStoreCommands.DEL:
                         if key in self._data:
                             del self._data[key]
+                            self.key_index.delete(key)
                             future.set_result(True)
                         else:
                             future.set_result(False)
@@ -47,8 +94,9 @@ class DataStore:
                         result = self._data.get(key)
                         if result and result.expiry and result.expiry < current_time:
                             del self._data[key]
+                            self.key_index.delete(key)
                             print(
-                                f'Deleted Key `{key}` after expiry {result.expiry.strftime("%Y-%m-%d %H:%M:%S")}'
+                                f'Deleted key `{key}` after expiry {result.expiry.strftime("%Y-%m-%d %H:%M:%S")}'
                             )
                             future.set_result(None)
                         else:
@@ -57,6 +105,12 @@ class DataStore:
                         future.set_exception(ValueError(f"Unknown command: {command}"))
             except Exception as e:
                 future.set_exception(e)
+
+    async def size(self):
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        await self._queue.put((DataStoreCommands.SIZE, None, None, None, future))
+        return await future
 
     async def delete(self, key) -> bool:
         loop = asyncio.get_running_loop()
@@ -75,5 +129,3 @@ class DataStore:
         future = loop.create_future()
         await self._queue.put((DataStoreCommands.GET, key, None, None, future))
         return await future
-
-

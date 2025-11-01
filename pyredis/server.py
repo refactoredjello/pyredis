@@ -2,6 +2,7 @@ import socket
 import asyncio
 import traceback
 
+from pyredis.expiry import run_cleanup_in_background
 from pyredis.protocol import parse_frame, Error
 from pyredis.commands import Command
 from pyredis.store import DataStore
@@ -49,6 +50,7 @@ async def handle_connection(client, datastore, buffer_size):
 async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
     datastore = DataStore()
     loop = asyncio.get_running_loop()
+    cull_worker = asyncio.create_task(run_cleanup_in_background(datastore))
     worker_task = asyncio.create_task(datastore.run_worker())
     conns = []
 
@@ -63,7 +65,11 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
             try:
                 client, address = await loop.sock_accept(s)
                 # print(f"Handling connection from {address}")
-                conns.append(asyncio.create_task(handle_connection(client, datastore, buffer_size)))
+                conns.append(
+                    asyncio.create_task(
+                        handle_connection(client, datastore, buffer_size)
+                    )
+                )
 
             except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
                 print(f"Shutting Down")
@@ -71,8 +77,9 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
                     c.cancel()
 
                 worker_task.cancel()
+                cull_worker.cancel()
 
                 if conns:
                     await asyncio.gather(*conns, return_exceptions=True)
-                await asyncio.gather(worker_task, return_exceptions=True)
+                await asyncio.gather(worker_task, cull_worker, return_exceptions=True)
                 raise
