@@ -30,8 +30,6 @@ async def handle_connection(client, datastore, buffer_size):
                         await loop.sock_sendall(client, response.serialize())
                         if isinstance(response, Error):
                             print("Resp Err: ", response.decode())
-                        else:
-                            print("Resp: OK")
                     except Exception:
                         print("Unhandled error", traceback.format_exc())
                         error = Error(f"Server error".encode())
@@ -62,7 +60,7 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
         while True:
             try:
                 client, address = await loop.sock_accept(s)
-                print(f"Handling connection from {address}")
+                # print(f"Handling connection from {address}")
                 conns.append(asyncio.create_task(handle_connection(client, datastore, buffer_size)))
 
             except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):

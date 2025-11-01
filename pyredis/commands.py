@@ -58,7 +58,7 @@ def get_expiry_time(opts: ExpiryOptions):
 
 class ParseSetArgs:
     def __init__(self, request: Array):
-        self.args: Array = request[3:]
+        self.args: list = request.decode()[3:]
         self.commands = []
         self.get_flag = False
         self.set_flag = None
@@ -129,7 +129,7 @@ def register_command(name):
 
 class Command:
     def __init__(self, request: Array, datastore: DataStore):
-        self.cmd = request[0].decode().upper()
+        self.cmd = request.data[0].decode().upper()
         self.request = request
         self.handler = _cmd_registry.get(self.cmd)
         self.datastore = datastore
@@ -146,7 +146,7 @@ class Command:
     # ECHO  *2\r\n$4\r\nECHO\r\n$11\r\nhello world\r\n
     @register_command("ECHO")
     def echo(self):
-        return self.request[1]
+        return self.request.data[1]
 
     # *1\r\n$4\r\nPING\r\n
     @register_command("PING")
@@ -167,40 +167,40 @@ class Command:
 
     @register_command("EXISTS")
     async def exists(self):
-        key = self.request[1].decode()
+        key = self.request.data[1].decode()
         if await self.datastore.exists(key):
             return SimpleString(b'OK')
         return NullBulkString()
 
     @register_command("DELETE")
     async def delete(self):
-        key = self.request[1].decode()
+        key = self.request.data[1].decode()
         if await self.datastore.delete(key):
             return SimpleString(b"OK")
         return NullBulkString()
 
     @register_command("INCR")
     async def incr(self):
-        key = self.request[1].decode()
+        key = self.request.data[1].decode()
         result = await self.datastore.incr(key)
         return result if result else NullBulkString()
 
     @register_command("DECR")
     async def decr(self):
-        key = self.request[1].decode()
+        key = self.request.data[1].decode()
         result = await self.datastore.decr(key)
         return result if result else NullBulkString()
 
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
     @register_command("SET")
     async def set_key(self):
-        if len(self.request) < 3:
+        if len(self.request.data) < 3:
             return Error(b"Wrong number of arguments for `set` command")
 
         expiry = None
         old_record = None
-        key = self.request[1].decode()
-        value = self.request[2]
+        key = self.request.data[1].decode()
+        value = self.request.data[2]
 
         try:
             value = Integer(value.decode().encode())
@@ -239,9 +239,9 @@ class Command:
     # *2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n
     @register_command("GET")
     async def get_key(self):
-        if len(self.request) != 2:
+        if len(self.request.data) != 2:
             return Error(b"ERR GET does not require more than one argument")
-        key = self.request[1].decode()
+        key = self.request.data[1].decode()
         result = await self.datastore.get(key)
         if result is None:
             return NullBulkString()
