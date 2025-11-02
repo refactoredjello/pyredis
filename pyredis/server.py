@@ -1,10 +1,10 @@
-import socket
 import asyncio
+import socket
 import traceback
 
-from pyredis.expiry import run_cleanup_in_background
-from pyredis.protocol import parse_frame, Error
 from pyredis.commands import Command
+from pyredis.expiry import run_cleanup_in_background
+from pyredis.protocol import Error, parse_frame
 from pyredis.store import DataStore
 
 PORT = 6379  # Redis Port

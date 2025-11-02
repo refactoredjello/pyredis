@@ -1,2 +1,3 @@
 pytest>=8.0
-black
+black==25.9.0
+isort==7.0.0

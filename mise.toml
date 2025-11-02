@@ -7,7 +7,7 @@ _.python.venv = { path = ".venv", create = true }
 
 [tasks.fmt]
 description = "Format the code base"
-run = "black ."
+run = "isort . && black ."
 
 [tasks.setup]
 description = "Install Dependencies"

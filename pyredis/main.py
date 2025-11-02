@@ -1,7 +1,8 @@
-from pyredis.server import server, PORT, BUFFER_SIZE, HOST
-from pyredis.expiry import INTERVAL_SECONDS
 import argparse
 import asyncio
+
+from pyredis.expiry import INTERVAL_SECONDS
+from pyredis.server import BUFFER_SIZE, HOST, PORT, server
 
 
 def main():

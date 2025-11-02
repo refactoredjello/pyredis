@@ -1,129 +1,40 @@
-import inspect
-from dataclasses import dataclass
 from enum import Enum
-from typing import Literal
-from datetime import datetime, timedelta
 
+from pyredis.args import CommandParserException, ParseSetArgs, SetArgs, get_expiry_time
 from pyredis.protocol import (
     Array,
-    Error,
-    SimpleString,
-    NullBulkString,
     BulkString,
+    Error,
     Integer,
     NullArray,
+    NullBulkString,
+    SimpleString,
 )
-from pyredis.store import DataStore, Record
+from pyredis.store import DataStore
 
 
-class CommandParserException(Exception):
-    def __init__(self, message, request=None):
-        self.message = message
-        self.request = request
-        super().__init__(self.message)
-
-
-class SetArgs(Enum):
-    EX = "EX"
-    PX = "PX"
-    EXAT = "EXAT"
-    PXAT = "PXAT"
-    KEEPTTL = "KEEPTTL"
-    NX = "NX"
-    XX = "XX"
-    GET = "GET"
-
-
-ExpiryType = Literal[SetArgs.EX, SetArgs.PX, SetArgs.EXAT, SetArgs.PXAT]
-
-
-@dataclass
-class ExpiryOptions:
-    expiry_type: ExpiryType
-    value: int
-
-
-def get_expiry_time(opts: ExpiryOptions):
-    try:
-        match opts.expiry_type:
-            case SetArgs.EX:
-                return datetime.now() + timedelta(seconds=opts.value)
-            case SetArgs.PX:
-                return datetime.now() + timedelta(milliseconds=opts.value)
-            case SetArgs.EXAT:
-                return datetime.fromtimestamp(opts.value)
-            case SetArgs.PXAT:
-                return datetime.fromtimestamp(opts.value // 1000)
-            case _:
-                raise ValueError(f"No valid expiry argument given `{opts.expiry_type}`")
-    except Exception as e:
-        raise CommandParserException(
-            f"Failed to set expiry from value {opts.value}: {e}"
-        )
-
-
-class ParseSetArgs:
-    def __init__(self, request: Array):
-        self.args: list = request.decode()[3:]
-        self.commands = []
-        self.get_flag = False
-        self.set_flag = None
-        self.expiry_opt: ExpiryOptions | None = None
-        self.keep_ttl_flag = False
-
-    def parse_set_args(self):
-        i = 0
-
-        while i < len(self.args):
-            try:
-                arg = SetArgs(self.args[i])
-                match arg:
-                    case SetArgs.GET:
-                        self.get_flag = True
-                    case (
-                        SetArgs.EX
-                        | SetArgs.PX
-                        | SetArgs.EXAT
-                        | SetArgs.PXAT
-                        | SetArgs.KEEPTTL
-                    ):
-                        if self.expiry_opt or self.keep_ttl_flag:
-                            raise CommandParserException(
-                                "Cannot use more than one expiry arg."
-                            )
-
-                        if arg == SetArgs.KEEPTTL:
-                            self.keep_ttl_flag = True
-                            continue
-
-                        i += 1
-                        expiry_offset = int(self.args[i])
-                        if expiry_offset < 0:
-                            raise CommandParserException(
-                                f"{arg} must be greater than 0"
-                            )
-                        self.expiry_opt = ExpiryOptions(arg, expiry_offset)
-                    case SetArgs.NX | SetArgs.XX:
-                        if self.set_flag is not None:
-                            raise CommandParserException(
-                                "Can only set NX or XX, not both"
-                            )
-                        self.set_flag = arg
-            except ValueError:
-                raise CommandParserException(
-                    f"The arg `{self.args[i]}` is not valid for SET command. Must be one of {', '.join([v.value for v in SetArgs])}"
-                )
-            i += 1
-        return self
-
-    def opts_exist(self):
-        return self.get_flag or self.set_flag or self.expiry_opt or self.keep_ttl_flag
+class ActiveCommand(Enum):
+    ECHO = 'ECHO'
+    DBSIZE = 'DBSIZE'
+    PING = 'PING'
+    NOT_FOUND = 'NOT_FOUND'
+    INFO = 'INFO'
+    COMMAND = 'COMMAND'
+    EXISTS = 'EXISTS'
+    DEL = 'DEL'
+    INCR = 'INCR'
+    DECR = 'DECR'
+    SET = 'SET'
+    GET = 'GET'
+    LPUSH = 'LPUSH'
+    RPUSH = 'RPUSH'
+    LRANGE = 'LRANGE'
 
 
 _cmd_registry = {}
 
 
-def register_command(name):
+def register_command(name:ActiveCommand):
     def decorator(func):
         async def log_request(*args, **kwargs):
             print(f"CMD - {name}: {args[0].request.decode()}")
@@ -137,57 +48,61 @@ def register_command(name):
 
 class Command:
     def __init__(self, request: Array, datastore: DataStore):
-        self.cmd = request.data[0].decode().upper()
+        try:
+            self.cmd = ActiveCommand(request.data[0].decode().upper())
+        except ValueError:
+            self.cmd = request.data[0].decode()
+
         self.request = request
         self.handler = _cmd_registry.get(self.cmd)
         self.datastore = datastore
 
     async def exec(self):
         if self.handler is None:
-            return self.not_found()
+            return await self.not_found()
         return await self.handler(self)
 
     # ECHO  *2\r\n$4\r\nECHO\r\n$11\r\nhello world\r\n
-    @register_command("ECHO")
+    @register_command(ActiveCommand.ECHO)
     async def echo(self):
         return self.request.data[1]
 
-    @register_command("DBSIZE")
+    @register_command(ActiveCommand.DBSIZE)
     async def db_size(self):
         return Integer(str(await self.datastore.size()).encode())
 
     # *1\r\n$4\r\nPING\r\n
-    @register_command("PING")
+    @register_command(ActiveCommand.PING)
     async def ping(self):
         return SimpleString(b"PONG")
 
-    @register_command("NOT_FOUND")
+    @register_command(ActiveCommand.NOT_FOUND)
     async def not_found(self):
-        return Error(f"ERR command `{self.cmd}` not found".encode())
+        return Error(f"Command `{self.cmd}` not found".encode())
 
-    @register_command("INFO")
+    @register_command(ActiveCommand.INFO)
     async def info(self):
         return SimpleString(b"Running")
 
-    @register_command("COMMAND")
+    @register_command(ActiveCommand.COMMAND)
     async def info(self):
         return SimpleString(b"Not Implemented")
 
-    @register_command("EXISTS")
+    @register_command(ActiveCommand.EXISTS)
     async def exists(self):
         key = self.request.data[1].decode()
         if await self.datastore.get(key):
             return SimpleString(b"OK")
         return NullBulkString()
 
-    @register_command("DEL")
+    @register_command(ActiveCommand.DEL)
     async def delete(self):
         key = self.request.data[1].decode()
         if await self.datastore.delete(key):
             return SimpleString(b"OK")
         return NullBulkString()
 
-    @register_command("INCR")
+    @register_command(ActiveCommand.INCR)
     async def incr(self):
         key = self.request.data[1].decode()
         result = await self.datastore.get(key)
@@ -198,7 +113,7 @@ class Command:
 
         return NullBulkString()
 
-    @register_command("DECR")
+    @register_command(ActiveCommand.DECR)
     async def decr(self):
         key = self.request.data[1].decode()
         result = await self.datastore.get(key)
@@ -210,7 +125,7 @@ class Command:
         return NullBulkString()
 
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
-    @register_command("SET")
+    @register_command(ActiveCommand.SET)
     async def set_key(self):
         if len(self.request.data) < 3:
             return Error(b"Wrong number of arguments for `set` command")
@@ -255,7 +170,7 @@ class Command:
         return SimpleString(b"OK") if is_set else Error(b"Failed to set key:value")
 
     # *2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n
-    @register_command("GET")
+    @register_command(ActiveCommand.GET)
     async def get_key(self):
         if len(self.request.data) != 2:
             return Error(b"GET does not require more than one argument")
@@ -268,7 +183,7 @@ class Command:
             return BulkString(str(result.value.decode()).encode())
         return result.value
 
-    @register_command("LPUSH")
+    @register_command(ActiveCommand.LPUSH)
     async def l_push(self):
         if len(self.request.data) < 3:
             return Error(b"Wrong number of arguments for `lpush` command")
@@ -290,8 +205,8 @@ class Command:
         else:
             return Error(b"Failed to set new list at key")
 
-    @register_command("RPUSH")
-    async def l_push(self):
+    @register_command(ActiveCommand.RPUSH)
+    async def r_push(self):
         if len(self.request.data) < 3:
             return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
@@ -314,7 +229,7 @@ class Command:
         else:
             return Error(b"Failed to set new list at key")
 
-    @register_command("LRANGE")
+    @register_command(ActiveCommand.LRANGE)
     async def l_range(self):
         req_len = len(self.request.data)
         if req_len != 4:

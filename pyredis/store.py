@@ -2,11 +2,11 @@ import asyncio
 import random
 from asyncio import Future
 from dataclasses import dataclass
-from typing import Optional, Dict, Tuple
-from enum import Enum
-
-from pyredis.protocol import PyRedisData, SimpleString, Integer, NullBulkString
 from datetime import datetime
+from enum import Enum
+from typing import Dict, Optional, Tuple
+
+from pyredis.protocol import Integer, NullBulkString, PyRedisData, SimpleString
 
 
 @dataclass

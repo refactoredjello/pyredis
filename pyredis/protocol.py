@@ -1,5 +1,5 @@
-from typing import Tuple, TypeAlias, Optional, ClassVar
-from dataclasses import dataclass, field, InitVar
+from dataclasses import InitVar, dataclass, field
+from typing import ClassVar, Optional, Tuple, TypeAlias
 
 CRLF = b"\r\n"
 

@@ -1,15 +1,16 @@
 import pytest
+
 from pyredis.protocol import (
-    parse_frame,
-    SimpleString,
-    Error,
-    BulkString,
-    Array,
-    Integer,
     CRLF,
+    Array,
+    BulkString,
+    Error,
+    Integer,
     Null,
-    NullBulkString,
     NullArray,
+    NullBulkString,
+    SimpleString,
+    parse_frame,
 )
 
 
