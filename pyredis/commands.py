@@ -1,4 +1,3 @@
-import asyncio
 from enum import Enum
 
 from pyredis.args import CommandParserException, ParseSetArgs, SetArgs, get_expiry_time
@@ -12,7 +11,7 @@ from pyredis.protocol import (
     NullBulkString,
     SimpleString,
 )
-from pyredis.store import DataStore
+from pyredis.store import DataStoreWithLock
 
 
 class ActiveCommand(Enum):
@@ -49,7 +48,7 @@ def register_command(name:ActiveCommand):
 
 
 class Command:
-    def __init__(self, request: Array, datastore: DataStore, cmd_logger: AOF):
+    def __init__(self, request: Array, datastore: DataStoreWithLock, cmd_logger: AOF):
         try:
             self.cmd = ActiveCommand(request.data[0].decode().upper())
         except ValueError:
@@ -61,7 +60,6 @@ class Command:
         self.datastore = datastore
 
     async def exec(self):
-
         if self.handler is None:
             return await self.not_found()
         self.cmd_logger.log(self.request)
@@ -74,7 +72,7 @@ class Command:
 
     @register_command(ActiveCommand.DBSIZE)
     async def db_size(self):
-        return Integer(str(await self.datastore.size()).encode())
+        return Integer(str(self.datastore.size()).encode())
 
     # *1\r\n$4\r\nPING\r\n
     @register_command(ActiveCommand.PING)
@@ -96,38 +94,40 @@ class Command:
     @register_command(ActiveCommand.EXISTS)
     async def exists(self):
         key = self.request.data[1].decode()
-        if await self.datastore.get(key):
+        if self.datastore.get(key):
             return SimpleString(b"OK")
         return NullBulkString()
 
     @register_command(ActiveCommand.DEL)
     async def delete(self):
         key = self.request.data[1].decode()
-        if await self.datastore.delete(key):
+        if self.datastore.delete(key):
             return SimpleString(b"OK")
         return NullBulkString()
 
     @register_command(ActiveCommand.INCR)
     async def incr(self):
         key = self.request.data[1].decode()
-        result = await self.datastore.get(key)
-        if result and isinstance(result.value, Integer):
-            new_value = Integer(str(result.value.decode() + 1).encode())
-            if await self.datastore.set(key, new_value, result.expiry):
-                return new_value
+        with self.datastore.atomic():
+            result = self.datastore.get(key)
+            if result and isinstance(result.value, Integer):
+                new_value = Integer(str(result.value.decode() + 1).encode())
+                if self.datastore.set(key, new_value, result.expiry):
+                    return new_value
 
-        return NullBulkString()
+            return NullBulkString()
 
     @register_command(ActiveCommand.DECR)
     async def decr(self):
         key = self.request.data[1].decode()
-        result = await self.datastore.get(key)
-        if result and isinstance(result.value, Integer):
-            new_value = Integer(str(result.value.decode() - 1).encode())
-            if await self.datastore.set(key, new_value, result.expiry):
-                return new_value
+        with self.datastore.atomic():
+            result = self.datastore.get(key)
+            if result and isinstance(result.value, Integer):
+                new_value = Integer(str(result.value.decode() - 1).encode())
+                if self.datastore.set(key, new_value, result.expiry):
+                    return new_value
 
-        return NullBulkString()
+            return NullBulkString()
 
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
     @register_command(ActiveCommand.SET)
@@ -151,7 +151,7 @@ class Command:
             return Error(f"Invalid SET arguments: {e}".encode())
 
         if parser.set_flag is not None or parser.get_flag is not None:
-            old_record = await self.datastore.get(key)
+            old_record = self.datastore.get(key)
             if parser.set_flag == SetArgs.NX and old_record is not None:
                 return Error(f"Key {key} already exists and NX sent".encode())
             elif parser.set_flag == SetArgs.XX and old_record is None:
@@ -160,7 +160,7 @@ class Command:
         if parser.expiry_opt:
             expiry = get_expiry_time(parser.expiry_opt)
 
-        is_set = await self.datastore.set(key, value, expiry)
+        is_set = self.datastore.set(key, value, expiry)
 
         if parser.get_flag:
             if old_record is None:
@@ -180,7 +180,7 @@ class Command:
         if len(self.request.data) != 2:
             return Error(b"GET does not require more than one argument")
         key = self.request.data[1].decode()
-        result = await self.datastore.get(key)
+        result = self.datastore.get(key)
         if result is None:
             return NullBulkString()
 
@@ -194,21 +194,22 @@ class Command:
             return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
         values = self.request.data[2:]
-        current = await self.datastore.get(key)
-        new_value = Array(list(reversed(values)))
-        if current:
-            if not isinstance(current.value, Array):
-                return Error(
-                    f"Value at this key is not an array: {current.value.decode()}".encode()
-                )
-            new_value.data.extend(current.value.data)
+        with self.datastore.atomic():
+            current = self.datastore.get(key)
+            new_value = Array(list(reversed(values)))
+            if current:
+                if not isinstance(current.value, Array):
+                    return Error(
+                        f"Value at this key is not an array: {current.value.decode()}".encode()
+                    )
+                new_value.data.extend(current.value.data)
 
-        if await self.datastore.set(
-            key, new_value, current.expiry if current else None
-        ):
-            return Integer(str(len(new_value.data)).encode())
-        else:
-            return Error(b"Failed to set new list at key")
+            if  self.datastore.set(
+                key, new_value, current.expiry if current else None
+            ):
+                return Integer(str(len(new_value.data)).encode())
+            else:
+                return Error(b"Failed to set new list at key")
 
     @register_command(ActiveCommand.RPUSH)
     async def r_push(self):
@@ -216,23 +217,24 @@ class Command:
             return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
         values = self.request.data[2:]
-        current = await self.datastore.get(key)
-        if current:
-            if not isinstance(current.value, Array):
-                return Error(
-                    f"Value at this key is not an array: {current.value.decode()}".encode()
-                )
-            current.value.data.extend(values)
-            new_value = current.value
-        else:
-            new_value = Array(values)
+        with self.datastore.atomic():
+            current = self.datastore.get(key)
+            if current:
+                if not isinstance(current.value, Array):
+                    return Error(
+                        f"Value at this key is not an array: {current.value.decode()}".encode()
+                    )
+                current.value.data.extend(values)
+                new_value = current.value
+            else:
+                new_value = Array(values)
 
-        if await self.datastore.set(
-            key, new_value, current.expiry if current else None
-        ):
-            return Integer(str(len(new_value.data)).encode())
-        else:
-            return Error(b"Failed to set new list at key")
+            if self.datastore.set(
+                key, new_value, current.expiry if current else None
+            ):
+                return Integer(str(len(new_value.data)).encode())
+            else:
+                return Error(b"Failed to set new list at key")
 
     @register_command(ActiveCommand.LRANGE)
     async def l_range(self):
@@ -249,7 +251,7 @@ class Command:
         except TypeError:
             return Error(b"Slice indices must be ints")
 
-        current = await self.datastore.get(key)
+        current = self.datastore.get(key)
         if not current or not isinstance(current.value, Array):
             return NullArray()
 

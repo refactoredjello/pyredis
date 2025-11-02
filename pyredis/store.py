@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import random
 from asyncio import Future
 from dataclasses import dataclass
@@ -55,8 +56,58 @@ class KeyIndexStore:
         random_index = random.randint(0, len(self._keys) - 1)
         return self._keys[random_index]
 
+class DataStoreWithLock:
+    def __init__(self):
+        self._data: Dict[str, Record] = {}
+        self._key_index: KeyIndexStore = KeyIndexStore()
+        self._lock = asyncio.Lock()
 
-class DataStore:
+    def start(self):
+        async def dummy_task():
+            pass
+        return asyncio.create_task(dummy_task())
+
+    def get_random_key(self):
+        return self._key_index.get_random_key()
+
+    @contextlib.asynccontextmanager
+    async def atomic(self):
+        await self._lock.acquire()
+        try:
+            yield
+        finally:
+            self._lock.release()
+
+    def size(self) -> int:
+        return len(self._data)
+
+    def set(self, key:str, value:PyRedisData, expiry=None) -> bool:
+        self._data[key] = Record(value, expiry)
+        self._key_index.append(key)
+        return True
+
+    def get(self, key:str) -> Record | None:
+        result = self._data.get(key)
+        current_time = datetime.now()
+        if result and result.expiry and result.expiry < current_time:
+            del self._data[key]
+            self._key_index.delete(key)
+            print(
+                f'Deleted key `{key}` after expiry {result.expiry.strftime("%Y-%m-%d %H:%M:%S")}'
+            )
+            return None
+        return result
+
+    def delete(self, key) -> bool:
+        if key in self._data:
+            del self._data[key]
+            self._key_index.delete(key)
+            return True
+        return False
+
+
+
+class DataStoreWithQueue:
     def __init__(self):
         self._data: Dict[str, Record] = {}
         self.key_index: KeyIndexStore = KeyIndexStore()
@@ -69,6 +120,12 @@ class DataStore:
                 Future,
             ]
         ] = asyncio.Queue()
+
+    def start(self):
+        return asyncio.create_task(self.run_worker())
+
+    def get_random_key(self):
+        return self.key_index.get_random_key()
 
     async def run_worker(self):
         print("Data Store: up")
