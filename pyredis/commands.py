@@ -1,7 +1,6 @@
 from enum import Enum
+from typing import TYPE_CHECKING
 
-from pyredis.args import CommandParserException, ParseSetArgs, SetArgs, get_expiry_time
-from pyredis.persist import AOF
 from pyredis.protocol import (
     Array,
     BulkString,
@@ -11,7 +10,16 @@ from pyredis.protocol import (
     NullBulkString,
     SimpleString,
 )
+from pyredis.set_args_parser import (
+    CommandParserException,
+    ParseSetArgs,
+    SetArgs,
+    get_expiry_time,
+)
 from pyredis.store import DataStoreWithLock
+
+if TYPE_CHECKING:
+    from pyredis.persist import AOF
 
 
 class ActiveCommand(Enum):
@@ -48,7 +56,9 @@ def register_command(name: ActiveCommand):
 
 
 class Command:
-    def __init__(self, request: Array, datastore: DataStoreWithLock, cmd_logger: AOF):
+    def __init__(
+        self, request: Array, datastore: DataStoreWithLock, cmd_logger: AOF | None
+    ):
         try:
             self.cmd = ActiveCommand(request.data[0].decode().upper())
         except ValueError:
@@ -62,7 +72,8 @@ class Command:
     async def exec(self):
         if self.handler is None:
             return await self.not_found()
-        self.cmd_logger.log(self.request)
+        if self.cmd_logger:
+            self.cmd_logger.log(self.request)
         return await self.handler(self)
 
     # ECHO  *2\r\n$4\r\nECHO\r\n$11\r\nhello world\r\n

@@ -1,8 +1,9 @@
 import argparse
 import asyncio
 
+from pyredis.config import AOF_NAME, BUFFER_SIZE, HOST, PORT
 from pyredis.expiry import INTERVAL_SECONDS
-from pyredis.server import BUFFER_SIZE, HOST, PORT, server
+from pyredis.server import server
 
 
 def main():
@@ -43,9 +44,30 @@ def main():
         required=False,
     )
 
+    parser.add_argument(
+        "-f",
+        "--cmd_log_name",
+        type=str,
+        help="The name of the log file.",
+        default=AOF_NAME,
+        required=False,
+    )
+
+    parser.add_argument(
+        "-l",
+        "--load",
+        action="store_true",
+        help="Load existing dump file.",
+        required=False,
+    )
+
     args = parser.parse_args()
     try:
-        asyncio.run(server(args.address, args.port, args.buffer_size))
+        asyncio.run(
+            server(
+                args.address, args.port, args.buffer_size, args.cmd_log_name, args.load
+            )
+        )
     except KeyboardInterrupt:
         print("Shutdown...")
     except Exception as e:
@@ -53,6 +75,7 @@ def main():
     finally:
         # Give OS time to release the port
         import time
+
         time.sleep(0.1)
 
 

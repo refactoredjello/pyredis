@@ -65,7 +65,8 @@ class DataStoreWithLock:
         self._now_cache = datetime.now()
 
     def start(self):
-        print('Data Store With Lock: ready')
+        print("Data Store With Lock: ready")
+
         async def update_time():
             while True:
                 self._now_cache = datetime.now()

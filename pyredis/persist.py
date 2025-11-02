@@ -1,13 +1,18 @@
 import asyncio
+import os.path
 import traceback
 
-from pyredis.protocol import Array
+from pyredis.commands import Command
+from pyredis.config import BUFFER_SIZE
+from pyredis.protocol import Array, parse_frame
+from pyredis.store import DataStoreWithLock
 
 
 class AOF:
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, datastore: DataStoreWithLock):
         self._queue: asyncio.Queue[Array] = asyncio.Queue()
         self.filename = filename
+        self.datastore = datastore
 
     def _write_line(self, value: Array):
         with open(self.filename, "ab") as f:
@@ -29,3 +34,17 @@ class AOF:
 
     def log(self, value: Array):
         self._queue.put_nowait(value)
+
+    async def replay(self):
+        if os.path.exists(self.filename):
+            with open(self.filename, "rb") as f:
+                frame_buffer = bytearray()
+                while True:
+                    buffer = f.read(BUFFER_SIZE)
+                    if not buffer:
+                        return
+                    frame_buffer.extend(buffer)
+                    frame, size = parse_frame(frame_buffer)
+                    if frame:
+                        del frame_buffer[:size]
+                        await Command(frame, self.datastore, None).exec()

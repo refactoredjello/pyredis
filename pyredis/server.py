@@ -3,15 +3,11 @@ import socket
 import traceback
 
 from pyredis.commands import Command
+from pyredis.config import AOF_NAME, BUFFER_SIZE, HOST, PORT
 from pyredis.expiry import run_cleanup_in_background
 from pyredis.persist import AOF
 from pyredis.protocol import Error, parse_frame
-from pyredis.store import DataStoreWithLock, DataStoreWithQueue
-
-PORT = 6379  # Redis Port
-BUFFER_SIZE = 4096
-HOST = "localhost"
-AOF_NAME = "dump.aof"
+from pyredis.store import DataStoreWithLock
 
 
 async def handle_connection(client, datastore, buffer_size, cmd_logger):
@@ -47,13 +43,19 @@ async def handle_connection(client, datastore, buffer_size, cmd_logger):
         client.close()
 
 
-async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
+async def server(
+    host=HOST, port=PORT, buffer_size=BUFFER_SIZE, aof_name=AOF_NAME, load=False
+):
     datastore = DataStoreWithLock()
-    cmd_logger = AOF(AOF_NAME)
+    cmd_logger = AOF(aof_name, datastore)
 
     datastore_worker = datastore.start()
     cull_worker = asyncio.create_task(run_cleanup_in_background(datastore))
     cmd_logger_worker = asyncio.create_task(cmd_logger.run_worker())
+
+    if load:
+        await cmd_logger.replay()
+
     loop = asyncio.get_running_loop()
     conns = set()
 
