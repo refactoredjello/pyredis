@@ -4,15 +4,17 @@ import traceback
 
 from pyredis.commands import Command
 from pyredis.expiry import run_cleanup_in_background
+from pyredis.persist import AOF
 from pyredis.protocol import Error, parse_frame
 from pyredis.store import DataStore
 
 PORT = 6379  # Redis Port
 BUFFER_SIZE = 4096
 HOST = "localhost"
+AOF_NAME = 'dump.aof'
 
 
-async def handle_connection(client, datastore, buffer_size):
+async def handle_connection(client, datastore, buffer_size, cmd_logger):
     loop = asyncio.get_running_loop()
     frame_buffer = bytearray()
     try:
@@ -27,7 +29,7 @@ async def handle_connection(client, datastore, buffer_size):
                 if frame is not None:
                     frame_buffer = frame_buffer[size:]
                     try:
-                        response = await Command(frame, datastore).exec()
+                        response = await Command(frame, datastore, cmd_logger).exec()
                         await loop.sock_sendall(client, response.serialize())
                         if isinstance(response, Error):
                             print("Resp Err: ", response.decode())
@@ -49,9 +51,12 @@ async def handle_connection(client, datastore, buffer_size):
 
 async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
     datastore = DataStore()
-    loop = asyncio.get_running_loop()
-    worker_task = asyncio.create_task(datastore.run_worker())
+    cmd_logger = AOF(AOF_NAME)
+
+    datastore_worker = asyncio.create_task(datastore.run_worker())
     cull_worker = asyncio.create_task(run_cleanup_in_background(datastore))
+    cmd_logger_worker = asyncio.create_task(cmd_logger.run_worker())
+    loop = asyncio.get_running_loop()
     conns = []
 
     with socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) as s:
@@ -67,7 +72,7 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
                 # print(f"Handling connection from {address}")
                 conns.append(
                     asyncio.create_task(
-                        handle_connection(client, datastore, buffer_size)
+                        handle_connection(client, datastore, buffer_size, cmd_logger)
                     )
                 )
 
@@ -76,10 +81,10 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
                 for c in conns:
                     c.cancel()
 
-                worker_task.cancel()
+                datastore_worker.cancel()
                 cull_worker.cancel()
 
                 if conns:
                     await asyncio.gather(*conns, return_exceptions=True)
-                await asyncio.gather(worker_task, cull_worker, return_exceptions=True)
+                await asyncio.gather(datastore_worker, cull_worker, cmd_logger_worker, return_exceptions=True)
                 raise

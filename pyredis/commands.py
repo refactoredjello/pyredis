@@ -1,6 +1,8 @@
+import asyncio
 from enum import Enum
 
 from pyredis.args import CommandParserException, ParseSetArgs, SetArgs, get_expiry_time
+from pyredis.persist import AOF
 from pyredis.protocol import (
     Array,
     BulkString,
@@ -47,19 +49,22 @@ def register_command(name:ActiveCommand):
 
 
 class Command:
-    def __init__(self, request: Array, datastore: DataStore):
+    def __init__(self, request: Array, datastore: DataStore, cmd_logger: AOF):
         try:
             self.cmd = ActiveCommand(request.data[0].decode().upper())
         except ValueError:
             self.cmd = request.data[0].decode()
 
+        self.cmd_logger = cmd_logger
         self.request = request
         self.handler = _cmd_registry.get(self.cmd)
         self.datastore = datastore
 
     async def exec(self):
+
         if self.handler is None:
             return await self.not_found()
+        self.cmd_logger.log(self.request)
         return await self.handler(self)
 
     # ECHO  *2\r\n$4\r\nECHO\r\n$11\r\nhello world\r\n

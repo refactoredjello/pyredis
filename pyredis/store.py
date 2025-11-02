@@ -105,6 +105,8 @@ class DataStore:
                         future.set_exception(ValueError(f"Unknown command: {command}"))
             except Exception as e:
                 future.set_exception(e)
+            finally:
+                self._queue.task_done()
 
     async def size(self):
         loop = asyncio.get_running_loop()
