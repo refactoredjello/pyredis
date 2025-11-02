@@ -27,7 +27,7 @@ async def handle_connection(client, datastore, buffer_size, cmd_logger):
             while len(frame_buffer) > 0:
                 frame, size = parse_frame(frame_buffer)
                 if frame is not None:
-                    frame_buffer = frame_buffer[size:]
+                    del frame_buffer[:size]
                     try:
                         response = await Command(frame, datastore, cmd_logger).exec()
                         await loop.sock_sendall(client, response.serialize())
