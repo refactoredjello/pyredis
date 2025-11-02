@@ -10,12 +10,12 @@ class AOF:
         self.filename = filename
 
     def _write_line(self, value: Array):
-        with open(self.filename, 'ab') as f:
+        with open(self.filename, "ab") as f:
             f.write(value.serialize())
             f.flush()
 
     async def run_worker(self):
-        print('CMD Logger: up')
+        print("CMD Logger: up")
         while True:
             value = await self._queue.get()
             try:

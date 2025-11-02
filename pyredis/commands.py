@@ -15,27 +15,27 @@ from pyredis.store import DataStoreWithLock
 
 
 class ActiveCommand(Enum):
-    ECHO = 'ECHO'
-    DBSIZE = 'DBSIZE'
-    PING = 'PING'
-    NOT_FOUND = 'NOT_FOUND'
-    INFO = 'INFO'
-    COMMAND = 'COMMAND'
-    EXISTS = 'EXISTS'
-    DEL = 'DEL'
-    INCR = 'INCR'
-    DECR = 'DECR'
-    SET = 'SET'
-    GET = 'GET'
-    LPUSH = 'LPUSH'
-    RPUSH = 'RPUSH'
-    LRANGE = 'LRANGE'
+    ECHO = "ECHO"
+    DBSIZE = "DBSIZE"
+    PING = "PING"
+    NOT_FOUND = "NOT_FOUND"
+    INFO = "INFO"
+    COMMAND = "COMMAND"
+    EXISTS = "EXISTS"
+    DEL = "DEL"
+    INCR = "INCR"
+    DECR = "DECR"
+    SET = "SET"
+    GET = "GET"
+    LPUSH = "LPUSH"
+    RPUSH = "RPUSH"
+    LRANGE = "LRANGE"
 
 
 _cmd_registry = {}
 
 
-def register_command(name:ActiveCommand):
+def register_command(name: ActiveCommand):
     def decorator(func):
         async def log_request(*args, **kwargs):
             print(f"CMD - {name}: {args[0].request.decode()}")
@@ -108,7 +108,7 @@ class Command:
     @register_command(ActiveCommand.INCR)
     async def incr(self):
         key = self.request.data[1].decode()
-        with self.datastore.atomic():
+        async with self.datastore.atomic():
             result = self.datastore.get(key)
             if result and isinstance(result.value, Integer):
                 new_value = Integer(str(result.value.decode() + 1).encode())
@@ -120,7 +120,7 @@ class Command:
     @register_command(ActiveCommand.DECR)
     async def decr(self):
         key = self.request.data[1].decode()
-        with self.datastore.atomic():
+        async with self.datastore.atomic():
             result = self.datastore.get(key)
             if result and isinstance(result.value, Integer):
                 new_value = Integer(str(result.value.decode() - 1).encode())
@@ -194,7 +194,7 @@ class Command:
             return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
         values = self.request.data[2:]
-        with self.datastore.atomic():
+        async with self.datastore.atomic():
             current = self.datastore.get(key)
             new_value = Array(list(reversed(values)))
             if current:
@@ -204,9 +204,7 @@ class Command:
                     )
                 new_value.data.extend(current.value.data)
 
-            if  self.datastore.set(
-                key, new_value, current.expiry if current else None
-            ):
+            if self.datastore.set(key, new_value, current.expiry if current else None):
                 return Integer(str(len(new_value.data)).encode())
             else:
                 return Error(b"Failed to set new list at key")
@@ -217,7 +215,7 @@ class Command:
             return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
         values = self.request.data[2:]
-        with self.datastore.atomic():
+        async with self.datastore.atomic():
             current = self.datastore.get(key)
             if current:
                 if not isinstance(current.value, Array):
@@ -229,9 +227,7 @@ class Command:
             else:
                 new_value = Array(values)
 
-            if self.datastore.set(
-                key, new_value, current.expiry if current else None
-            ):
+            if self.datastore.set(key, new_value, current.expiry if current else None):
                 return Integer(str(len(new_value.data)).encode())
             else:
                 return Error(b"Failed to set new list at key")

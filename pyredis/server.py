@@ -6,12 +6,12 @@ from pyredis.commands import Command
 from pyredis.expiry import run_cleanup_in_background
 from pyredis.persist import AOF
 from pyredis.protocol import Error, parse_frame
-from pyredis.store import DataStoreWithQueue, DataStoreWithLock
+from pyredis.store import DataStoreWithLock, DataStoreWithQueue
 
 PORT = 6379  # Redis Port
 BUFFER_SIZE = 4096
 HOST = "localhost"
-AOF_NAME = 'dump.aof'
+AOF_NAME = "dump.aof"
 
 
 async def handle_connection(client, datastore, buffer_size, cmd_logger):
@@ -86,5 +86,10 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
 
                 if conns:
                     await asyncio.gather(*conns, return_exceptions=True)
-                await asyncio.gather(datastore_worker, cull_worker, cmd_logger_worker, return_exceptions=True)
+                await asyncio.gather(
+                    datastore_worker,
+                    cull_worker,
+                    cmd_logger_worker,
+                    return_exceptions=True,
+                )
                 raise

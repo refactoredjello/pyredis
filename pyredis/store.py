@@ -56,6 +56,7 @@ class KeyIndexStore:
         random_index = random.randint(0, len(self._keys) - 1)
         return self._keys[random_index]
 
+
 class DataStoreWithLock:
     def __init__(self):
         self._data: Dict[str, Record] = {}
@@ -65,6 +66,7 @@ class DataStoreWithLock:
     def start(self):
         async def dummy_task():
             pass
+
         return asyncio.create_task(dummy_task())
 
     def get_random_key(self):
@@ -81,12 +83,12 @@ class DataStoreWithLock:
     def size(self) -> int:
         return len(self._data)
 
-    def set(self, key:str, value:PyRedisData, expiry=None) -> bool:
+    def set(self, key: str, value: PyRedisData, expiry=None) -> bool:
         self._data[key] = Record(value, expiry)
         self._key_index.append(key)
         return True
 
-    def get(self, key:str) -> Record | None:
+    def get(self, key: str) -> Record | None:
         result = self._data.get(key)
         current_time = datetime.now()
         if result and result.expiry and result.expiry < current_time:
@@ -104,7 +106,6 @@ class DataStoreWithLock:
             self._key_index.delete(key)
             return True
         return False
-
 
 
 class DataStoreWithQueue:
