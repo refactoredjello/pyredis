@@ -1,6 +1,5 @@
 - Update set include optional args:
     KEEPTTL -- Retain the time to live associated with the key.
 
-- Load from AOF file
 - implement async logging
 - Dockerize app
