@@ -53,7 +53,6 @@ def main():
     finally:
         # Give OS time to release the port
         import time
-
         time.sleep(0.1)
 
 

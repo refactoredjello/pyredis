@@ -30,21 +30,19 @@ async def handle_connection(client, datastore, buffer_size, cmd_logger):
                     del frame_buffer[:size]
                     try:
                         response = await Command(frame, datastore, cmd_logger).exec()
-                        await loop.sock_sendall(client, response.serialize())
-                        if isinstance(response, Error):
-                            print("Resp Err: ", response.decode())
-                    except Exception:
-                        print("Unhandled error", traceback.format_exc())
+                    except:
+                        print("Unhandled error: ", traceback.format_exc())
                         error = Error(f"Server error".encode())
                         await loop.sock_sendall(client, error.serialize())
+                        return
+
+                    await loop.sock_sendall(client, response.serialize())
                 else:
                     break
-    except ConnectionResetError:
+    except (ConnectionResetError, BrokenPipeError):
         pass
     except asyncio.CancelledError:
         raise
-    except Exception as e:
-        print(f"Error handling connection: {e}")
     finally:
         client.close()
 
@@ -57,7 +55,7 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
     cull_worker = asyncio.create_task(run_cleanup_in_background(datastore))
     cmd_logger_worker = asyncio.create_task(cmd_logger.run_worker())
     loop = asyncio.get_running_loop()
-    conns = []
+    conns = set()
 
     with socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -70,11 +68,11 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
             try:
                 client, address = await loop.sock_accept(s)
                 # print(f"Handling connection from {address}")
-                conns.append(
-                    asyncio.create_task(
-                        handle_connection(client, datastore, buffer_size, cmd_logger)
-                    )
+                task = asyncio.create_task(
+                    handle_connection(client, datastore, buffer_size, cmd_logger)
                 )
+                conns.add(task)
+                task.add_done_callback(conns.discard)
 
             except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
                 print(f"Shutting Down")
@@ -83,6 +81,7 @@ async def server(host=HOST, port=PORT, buffer_size=BUFFER_SIZE):
 
                 datastore_worker.cancel()
                 cull_worker.cancel()
+                cmd_logger_worker.cancel()
 
                 if conns:
                     await asyncio.gather(*conns, return_exceptions=True)

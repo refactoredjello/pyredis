@@ -62,12 +62,16 @@ class DataStoreWithLock:
         self._data: Dict[str, Record] = {}
         self._key_index: KeyIndexStore = KeyIndexStore()
         self._lock = asyncio.Lock()
+        self._now_cache = datetime.now()
 
     def start(self):
-        async def dummy_task():
-            pass
+        print('Data Store With Lock: ready')
+        async def update_time():
+            while True:
+                self._now_cache = datetime.now()
+                await asyncio.sleep(0.1)
 
-        return asyncio.create_task(dummy_task())
+        return asyncio.create_task(update_time())
 
     def get_random_key(self):
         return self._key_index.get_random_key()
@@ -90,8 +94,7 @@ class DataStoreWithLock:
 
     def get(self, key: str) -> Record | None:
         result = self._data.get(key)
-        current_time = datetime.now()
-        if result and result.expiry and result.expiry < current_time:
+        if result and result.expiry and result.expiry < self._now_cache:
             del self._data[key]
             self._key_index.delete(key)
             print(
@@ -129,7 +132,7 @@ class DataStoreWithQueue:
         return self.key_index.get_random_key()
 
     async def run_worker(self):
-        print("Data Store: up")
+        print("Data Store With Queue: ready")
         while True:
             command, key, value, expiry, future = await self._queue.get()
             current_time = datetime.now()
