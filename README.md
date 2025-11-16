@@ -1,14 +1,14 @@
 **PyRedis**
 
 PyRedis is a from-scratch implementation of a Redis server in python. The motivation is purely educational.
-The goal is to get a better understanding of networking programming via a full implementation of the RESP protocol, 
-and a lower level understanding of in-memory data structures and stores.
+The goal is to get a better understanding of network programming via a full implementation of RESP(Redis Serialization Protocol), 
+and a lower level understanding of high performance in-memory data structures and stores in single threaded model. 
 
-Currently, supports GET, SET, ECHO, PING, INCR, DECR, LPUSH, RPUSH, LRANGE commands.
+Currently, supports GET, SET, ECHO, PING, INCR, DECR, LPUSH, RPUSH, LRANGE, DBSIZE commands.
 
 **Setup**
 
-The app uses mise-en-place for runtime version management and development task runners.  
+The app uses mise-en-place for tool version management and dev task runners.  
 1. Setup mise -> https://mise.jdx.dev/
 2. Run the setup task runner. 
 ```bash
@@ -30,4 +30,4 @@ mise dev
 
  - Install the redis-cli and run `redis-cli PING`. You should get a response `PONG`. 
  - Create 1000 keys `for i in {1..1000}; do (redis-cli set $i $i EX 10); done` and observe they are expired over time with `redis-cli DBSZIE`
- - Run redis benchmark task with `mise benchmark` to benchmark set and get
+ - Run the redis benchmarking tool with `mise benchmark`
