@@ -42,9 +42,14 @@ class ActiveCommand(Enum):
 _cmd_registry = {}
 
 
-def register_command(name: ActiveCommand):
+def register_command(name: ActiveCommand, arg_length=None, fixed=False):
     def decorator(func):
         async def log_request(*args, **kwargs):
+            if arg_length is not None:
+                if (fixed and len(args[0].request.data) != arg_length) or len(args[0].request.data) < arg_length:
+                    return Error(
+                        f"Incorrect number of args for cmd {name}, given {len(args[0].request.data)} but {arg_length} required.".encode()
+                    )
             print(f"CMD - {name}: {args[0].request.decode()}")
             return await func(*args, **kwargs)
 
@@ -140,11 +145,8 @@ class Command:
             return NullBulkString()
 
     # *3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n
-    @register_command(ActiveCommand.SET)
+    @register_command(ActiveCommand.SET, 3)
     async def set_key(self):
-        if len(self.request.data) < 3:
-            return Error(b"Wrong number of arguments for `set` command")
-
         expiry = None
         old_record = None
         key = self.request.data[1].decode()
@@ -185,10 +187,8 @@ class Command:
         return SimpleString(b"OK") if is_set else Error(b"Failed to set key:value")
 
     # *2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n
-    @register_command(ActiveCommand.GET)
+    @register_command(ActiveCommand.GET, 2, True)
     async def get_key(self):
-        if len(self.request.data) != 2:
-            return Error(b"GET does not require more than one argument")
         key = self.request.data[1].decode()
         result = await self.datastore.get(key)
         if result is None:
@@ -198,10 +198,8 @@ class Command:
             return BulkString(str(result.value.decode()).encode())
         return result.value
 
-    @register_command(ActiveCommand.LPUSH)
+    @register_command(ActiveCommand.LPUSH, 3)
     async def l_push(self):
-        if len(self.request.data) < 3:
-            return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
         values = self.request.data[2:]
         async with self.datastore.atomic():
@@ -219,10 +217,8 @@ class Command:
             else:
                 return Error(b"Failed to set new list at key")
 
-    @register_command(ActiveCommand.RPUSH)
+    @register_command(ActiveCommand.RPUSH, 3)
     async def r_push(self):
-        if len(self.request.data) < 3:
-            return Error(b"Wrong number of arguments for `lpush` command")
         key = self.request.data[1].decode()
         values = self.request.data[2:]
 
@@ -243,14 +239,8 @@ class Command:
             else:
                 return Error(b"Failed to set new list at key")
 
-    @register_command(ActiveCommand.LRANGE)
+    @register_command(ActiveCommand.LRANGE, 4, True)
     async def l_range(self):
-        req_len = len(self.request.data)
-        if req_len != 4:
-            return Error(
-                f"The cmd lrange requires 4 arguments, {req_len} given".encode()
-            )
-
         key = self.request.data[1].decode()
         try:
             start = int(self.request.data[2].decode())
