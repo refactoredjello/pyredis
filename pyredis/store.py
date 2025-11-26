@@ -85,15 +85,15 @@ class DataStoreWithLock:
         finally:
             self._lock.release()
 
-    def size(self) -> int:
+    async def size(self) -> int:
         return len(self._data)
 
-    def set(self, key: str, value: PyRedisData, expiry=None) -> bool:
+    async def set(self, key: str, value: PyRedisData, expiry=None) -> bool:
         self._data[key] = Record(value, expiry)
         self._key_index.append(key)
         return True
 
-    def get(self, key: str) -> Record | None:
+    async def get(self, key: str) -> Record | None:
         result = self._data.get(key)
         if result and result.expiry and result.expiry < self._now_cache:
             del self._data[key]
@@ -104,7 +104,7 @@ class DataStoreWithLock:
             return None
         return result
 
-    def delete(self, key) -> bool:
+    async def delete(self, key) -> bool:
         if key in self._data:
             del self._data[key]
             self._key_index.delete(key)
@@ -127,12 +127,12 @@ class DataStoreWithQueue:
         ] = asyncio.Queue()
 
     def start(self):
-        return asyncio.create_task(self.run_worker())
+        return asyncio.create_task(self._run_worker())
 
     def get_random_key(self):
         return self.key_index.get_random_key()
 
-    async def run_worker(self):
+    async def _run_worker(self):
         print("Data Store With Queue: ready")
         while True:
             command, key, value, expiry, future = await self._queue.get()
@@ -169,6 +169,11 @@ class DataStoreWithQueue:
                 future.set_exception(e)
             finally:
                 self._queue.task_done()
+
+    @contextlib.asynccontextmanager
+    async def atomic(self):
+        # No-op for queue-based store
+        yield
 
     async def size(self):
         loop = asyncio.get_running_loop()

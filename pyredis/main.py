@@ -61,11 +61,19 @@ def main():
         required=False,
     )
 
+    parser.add_argument(
+        "-dsl",
+        "--lock",
+        action="store_true",
+        help="Use lock based datastore instead of queue based",
+        required=False
+    )
+
     args = parser.parse_args()
     try:
         asyncio.run(
             server(
-                args.address, args.port, args.buffer_size, args.cmd_log_name, args.load
+                args.address, args.port, args.buffer_size, args.cmd_log_name, args.load, args.lock
             )
         )
     except KeyboardInterrupt:

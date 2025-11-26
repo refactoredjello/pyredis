@@ -7,7 +7,7 @@ from pyredis.config import AOF_NAME, BUFFER_SIZE, HOST, PORT
 from pyredis.expiry import run_cleanup_in_background
 from pyredis.persist import AOF
 from pyredis.protocol import Error, parse_frame
-from pyredis.store import DataStoreWithLock
+from pyredis.store import DataStoreWithLock, DataStoreWithQueue
 
 
 async def handle_connection(client, datastore, buffer_size, cmd_logger):
@@ -44,9 +44,9 @@ async def handle_connection(client, datastore, buffer_size, cmd_logger):
 
 
 async def server(
-    host=HOST, port=PORT, buffer_size=BUFFER_SIZE, aof_name=AOF_NAME, load=False
+    host=HOST, port=PORT, buffer_size=BUFFER_SIZE, aof_name=AOF_NAME, load=False, ds_lock=False
 ):
-    datastore = DataStoreWithLock()
+    datastore = DataStoreWithLock() if ds_lock else DataStoreWithQueue()
     cmd_logger = AOF(aof_name, datastore)
 
     datastore_worker = datastore.start()
