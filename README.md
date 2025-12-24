@@ -8,9 +8,9 @@ PyRedis is a from-scratch implementation of a Redis server in Python 3.14. The p
 - **RESP Protocol**: Full implementation of the Redis Serialization Protocol for parsing and serialization.
 - **Persistence**: Supports Append-Only File (AOF) logging to persist data across restarts.
 - **Expiration**: Active key expiration mechanism running in the background.
-- **Concurrency Models**:
-  - **Queue-based (Default)**: Uses an actor-like pattern with `asyncio.Queue` for thread-safe state management.
-  - **Lock-based**: Alternative implementation using `asyncio.Lock` available via configuration.
+- **Data-Store Concurrency Models**:
+  - **Queue-based (Default)**: Uses an actor-like pattern with `asyncio.Queue` for thread-safe state management. This is similar to the redis implementation. 
+  - **Lock-based**: Alternative implementation using `asyncio.Lock` available via configuration. 
 
 ## Supported Commands
 
