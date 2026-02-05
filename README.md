@@ -64,7 +64,7 @@ Or run directly with python to pass arguments (e.g., to load persistence):
 python -m pyredis.main --load
 ```
 
-## Testing
+## Basic Sanity Checks
 
 1. **Basic Connectivity**:
    Install `redis-cli` and run:
@@ -80,8 +80,8 @@ python -m pyredis.main --load
    redis-cli DBSIZE
    ```
 
-3. **Benchmark**:
-   Run the standard redis benchmarking tool:
+3. **Benchmark key/values**:
+   Run the redis benchmarking tool:
    ```bash
    mise benchmark
    ```
